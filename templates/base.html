@@ -1,13 +1,67 @@
-<!DOCTYPE html>
-<html>
+{% load static %}<!DOCTYPE html>
+<html lang="en">
 <head>
-    <title>{% block title %}My Project{% endblock %}</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CampusSwap{% endblock %} · CampusSwap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400..600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body>
-    <nav>
-        <a href="{% url 'home' %}">Home</a> |
-        <a href="{% url 'products:index' %}">Products</a>
-    </nav>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a class="logo" href="{% url 'home' %}">campus&#8644;swap</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+      <div class="nav-links" id="nav-links">
+        <a href="{% url 'home' %}">Home</a>
+        <a href="{% url 'products:index' %}">Browse</a>
+        <a class="btn btn-accent" href="{% url 'products:index' %}">Sell an item</a>
+        {# Auth area — replaced with real log in / sign up links in chunk A4. #}
+        <span class="help">Accounts coming soon</span>
+      </div>
+    </div>
+  </nav>
+
+  {% if messages %}
+  <div class="toasts" role="status" aria-live="polite">
+    {% for message in messages %}
+    <div class="toast toast-{{ message.tags }}">
+      <span>{{ message }}</span>
+      <button class="toast-close" type="button" aria-label="Dismiss">&times;</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <main class="container">
     {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="container">CampusSwap — a student marketplace for Strathmore University.</div>
+  </footer>
+
+  <script>
+    // Mobile nav toggle
+    (function () {
+      var toggle = document.querySelector('.nav-toggle');
+      var links = document.getElementById('nav-links');
+      if (toggle && links) {
+        toggle.addEventListener('click', function () {
+          var open = links.classList.toggle('open');
+          toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+      }
+    })();
+
+    // Toasts: dismiss on click, auto-hide after 4 seconds
+    document.querySelectorAll('.toast').forEach(function (toast) {
+      var close = function () { toast.remove(); };
+      toast.querySelector('.toast-close').addEventListener('click', close);
+      setTimeout(close, 4000);
+    });
+  </script>
 </body>
 </html>

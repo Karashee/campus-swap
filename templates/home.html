@@ -1,5 +1,24 @@
 {% extends 'base.html' %}
+{% block title %}Home{% endblock %}
+
 {% block content %}
-<h1>Home</h1>
-<p>This is a project-level template.</p>
+<section class="hero">
+  <h1>Buy, sell &amp; swap with fellow Stratizens</h1>
+  <p>Textbooks, electronics, stationery and dorm essentials from students on campus. Sell what you
+    no longer need, trade it, or give it away free.</p>
+  <div class="hero-actions">
+    <a class="btn btn-accent" href="{% url 'products:index' %}">Sell an item</a>
+    <a class="btn btn-secondary" href="{% url 'products:index' %}">Browse listings</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Latest listings</h2>
+  </div>
+  <div class="empty">
+    <p>No listings yet.</p>
+    <a class="btn" href="{% url 'products:index' %}">Post the first one</a>
+  </div>
+</section>
 {% endblock %}

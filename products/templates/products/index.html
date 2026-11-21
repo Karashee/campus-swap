@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}Products{% endblock %}
+{% block title %}Browse{% endblock %}
+
 {% block content %}
-<h1>Products</h1>
-<p>This is an app-level template.</p>
+<section class="section">
+  <div class="section-head">
+    <h1>Browse listings</h1>
+  </div>
+  <div class="empty">
+    <p>No listings yet.</p>
+    <a class="btn" href="{% url 'home' %}">Back home</a>
+  </div>
+</section>
 {% endblock %}
