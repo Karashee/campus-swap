@@ -1,0 +1,14 @@
+{% extends 'registration/auth_base.html' %}
+{% block title %}Sign up{% endblock %}
+{% block auth_heading %}Create your account{% endblock %}
+{% block auth_submit %}Sign up{% endblock %}
+
+{% block auth_intro %}
+<p class="help">Sign up with your student email address.</p>
+{% endblock %}
+
+{% block auth_links %}
+<p class="help">
+  Already have an account? <a href="{% url 'accounts:login' %}">Log in</a>
+</p>
+{% endblock %}

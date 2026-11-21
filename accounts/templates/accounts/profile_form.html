@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Edit profile{% endblock %}
+
+{% block content %}
+<section class="section">
+  <h1>Edit your profile</h1>
+  <p class="help">Your course and phone number help other students trust and reach you.</p>
+
+  <form class="form" method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="form-errors">
+      {% for error in form.non_field_errors %}<p style="margin:0">{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% for field in form %}{% include 'includes/form_field.html' %}{% endfor %}
+    <button class="btn" type="submit">Save changes</button>
+    <a class="btn btn-ghost" href="{% url 'accounts:profile' user.username %}">View public profile</a>
+  </form>
+</section>
+{% endblock %}

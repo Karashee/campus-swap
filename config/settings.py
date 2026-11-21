@@ -73,6 +73,21 @@ ROOT_URLCONF = 'config.urls'
 # Custom user model. Must be set before the project's first migrate.
 AUTH_USER_MODEL = 'accounts.User'
 
+# Students may sign up only with an email on one of these domains.
+# An empty ALLOWED_SIGNUP_EMAIL_DOMAINS in .env means "allow any domain".
+ALLOWED_SIGNUP_EMAIL_DOMAINS = env_list(
+    'ALLOWED_SIGNUP_EMAIL_DOMAINS', 'strathmore.edu'
+)
+
+AUTHENTICATION_BACKENDS = [
+    'accounts.backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+LOGIN_URL = 'accounts:login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{# Shared centred-card layout for every auth page. #}
+
+{% block content %}
+<div class="auth">
+  <div class="auth-card card">
+    <h1>{% block auth_heading %}{% endblock %}</h1>
+    {% block auth_intro %}{% endblock %}
+
+    <form class="form" method="post" novalidate>
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="form-errors">
+        {% for error in form.non_field_errors %}<p style="margin:0">{{ error }}</p>{% endfor %}
+      </div>
+      {% endif %}
+      {% for field in form %}{% include 'includes/form_field.html' %}{% endfor %}
+      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+      <button class="btn" type="submit">{% block auth_submit %}Continue{% endblock %}</button>
+    </form>
+
+    {% block auth_links %}{% endblock %}
+  </div>
+
+  <aside class="auth-aside">
+    <p class="auth-pitch">Your campus. Your stuff. Swap it.</p>
+    <p class="help">Buy, sell and trade with other Strathmore students, and meet up on campus.</p>
+  </aside>
+</div>
+{% endblock %}

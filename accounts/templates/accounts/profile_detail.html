@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ profile_user.display_name }}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="card profile-head">
+    {% if profile_user.avatar %}
+    <img class="avatar avatar-lg" src="{{ profile_user.avatar.url }}"
+         alt="{{ profile_user.display_name }}">
+    {% else %}
+    <span class="avatar avatar-lg" aria-hidden="true">{{ profile_user.initials }}</span>
+    {% endif %}
+
+    <div>
+      <h1>{{ profile_user.display_name }}</h1>
+      <p class="help">
+        {% if profile_user.course %}{{ profile_user.course }}{% endif %}
+        {% if profile_user.year_of_study %} · {{ profile_user.get_year_of_study_display }}{% endif %}
+        · Member since {{ profile_user.date_joined|date:"F Y" }}
+        · {{ listing_count }} listing{{ listing_count|pluralize }}
+      </p>
+      {% if profile_user.bio %}<p>{{ profile_user.bio }}</p>{% endif %}
+      {% if user == profile_user %}
+      <a class="btn btn-secondary" href="{% url 'accounts:profile_edit' %}">Edit profile</a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2>Available listings</h2>
+  </div>
+  {% if listings %}
+  <div class="grid">
+    {% for listing in listings %}{% include 'includes/listing_card.html' %}{% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>
+      {% if user == profile_user %}You have nothing up right now.
+      {% else %}{{ profile_user.display_name }} has nothing up right now.{% endif %}
+    </p>
+    {% if user == profile_user %}
+    <a class="btn" href="{% url 'products:index' %}">Post a listing</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
