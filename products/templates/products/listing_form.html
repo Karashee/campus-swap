@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}{{ heading }}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <h1>{{ heading }}</h1>
+  <p class="help">Add a clear photo and say where on campus you can meet.</p>
+
+  <form class="form" method="post" enctype="multipart/form-data" novalidate
+        id="listing-form" data-sell="{{ form.fields.listing_type.choices.0.0 }}">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+    <div class="form-errors">
+      {% for error in form.non_field_errors %}<p style="margin:0">{{ error }}</p>{% endfor %}
+    </div>
+    {% endif %}
+
+    {% include 'includes/form_field.html' with field=form.title %}
+    {% include 'includes/form_field.html' with field=form.category %}
+    {% include 'includes/form_field.html' with field=form.listing_type %}
+    {% include 'includes/form_field.html' with field=form.condition %}
+
+    <div id="price-field">{% include 'includes/form_field.html' with field=form.price %}</div>
+    <div id="trade-field">{% include 'includes/form_field.html' with field=form.trade_for %}</div>
+
+    {% include 'includes/form_field.html' with field=form.description %}
+    {% include 'includes/form_field.html' with field=form.meetup_spot %}
+    {% include 'includes/form_field.html' with field=form.image %}
+
+    <button class="btn" type="submit">{{ submit_label }}</button>
+    {% if object %}
+    <a class="btn btn-ghost" href="{{ object.get_absolute_url }}">Cancel</a>
+    {% else %}
+    <a class="btn btn-ghost" href="{% url 'products:index' %}">Cancel</a>
+    {% endif %}
+  </form>
+</section>
+
+<script>
+  // Show price for "For sale", trade_for for "For trade", neither for "Free".
+  // Convenience only: products/forms.py is still the source of truth.
+  (function () {
+    var priceField = document.getElementById('price-field');
+    var tradeField = document.getElementById('trade-field');
+    var radios = document.querySelectorAll('input[name="listing_type"]');
+    if (!priceField || !tradeField || !radios.length) { return; }
+
+    function sync() {
+      var selected = document.querySelector('input[name="listing_type"]:checked');
+      var value = selected ? selected.value : 'SELL';
+      priceField.hidden = value !== 'SELL';
+      tradeField.hidden = value !== 'TRADE';
+    }
+
+    radios.forEach(function (radio) { radio.addEventListener('change', sync); });
+    sync();
+  })();
+</script>
+{% endblock %}

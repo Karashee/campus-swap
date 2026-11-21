@@ -6,24 +6,48 @@
   <h1>Buy, sell &amp; swap with fellow Stratizens</h1>
   <p>Textbooks, electronics, stationery and dorm essentials from students on campus. Sell what you
     no longer need, trade it, or give it away free.</p>
-  <div class="hero-actions">
-    <a class="btn btn-accent" href="{% url 'products:index' %}">Sell an item</a>
-    <a class="btn btn-secondary" href="{% url 'products:index' %}">Browse listings</a>
+
+  <form class="search" method="get" action="{% url 'home' %}" role="search">
+    <label class="sr-only" for="{{ search_form.q.id_for_label }}">{{ search_form.q.label }}</label>
+    {{ search_form.q }}
+    <label class="sr-only" for="{{ search_form.category.id_for_label }}">{{ search_form.category.label }}</label>
+    {{ search_form.category }}
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <div class="chips">
+    {% for category in categories %}
+    <a class="chip" href="{% url 'home' %}?category={{ category.pk }}">
+      {{ category.name }} <span class="help">{{ category.listing_count }}</span>
+    </a>
+    {% endfor %}
   </div>
 </section>
 
 <section class="section">
   <div class="section-head">
-    <h2>Latest listings</h2>
+    <h2>{% if searching %}Search results{% else %}Latest listings{% endif %}</h2>
+    {% if searching %}
+    <a class="btn btn-ghost" href="{% url 'home' %}">Clear search</a>
+    {% endif %}
   </div>
+
+  {% if searching %}
+  <p class="help">{{ result_count }} listing{{ result_count|pluralize }} found.</p>
+  {% endif %}
+
   {% if latest_listings %}
   <div class="grid">
     {% for listing in latest_listings %}{% include 'includes/listing_card.html' %}{% endfor %}
   </div>
   {% else %}
   <div class="empty">
-    <p>No listings yet.</p>
-    <a class="btn" href="{% url 'products:index' %}">Post the first one</a>
+    <p>{% if searching %}Nothing matched that search.{% else %}No listings yet.{% endif %}</p>
+    {% if searching %}
+    <a class="btn" href="{% url 'home' %}">Clear search</a>
+    {% else %}
+    <a class="btn" href="{% url 'products:create' %}">Post the first one</a>
+    {% endif %}
   </div>
   {% endif %}
 </section>

@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Delete {{ listing.title }}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="auth-card card" style="max-width: 32rem;">
+    <h1>Delete this listing?</h1>
+    <p>
+      <strong>{{ listing.title }}</strong> will be removed for good. This cannot be undone.
+    </p>
+    <p class="help">If you just want to stop offering it, mark it sold or reserved instead.</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <button class="btn btn-danger" type="submit">Yes, delete it</button>
+      <a class="btn btn-ghost" href="{{ listing.get_absolute_url }}">Keep it</a>
+    </form>
+  </div>
+</section>
+{% endblock %}

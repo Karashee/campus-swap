@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}My listings{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="section-head">
+    <h1>My listings</h1>
+    <a class="btn btn-accent" href="{% url 'products:create' %}">Sell an item</a>
+  </div>
+
+  <div class="tabs">
+    {% for tab in tabs %}
+    <a class="tab{% if active_status == tab.value %} tab-active{% endif %}"
+       href="{% url 'products:my_listings' %}{% if tab.value %}?status={{ tab.value }}{% endif %}">
+      {{ tab.label }} ({{ tab.count }})
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if listings %}
+  <div class="grid">
+    {% for listing in listings %}
+    <div>
+      {% include 'includes/listing_card.html' %}
+      <p class="owner-actions">
+        <a class="btn btn-secondary" href="{% url 'products:edit' listing.slug %}">Edit</a>
+        <a class="btn btn-ghost" href="{% url 'products:delete' listing.slug %}">Delete</a>
+      </p>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    <p>Nothing here yet.</p>
+    <a class="btn" href="{% url 'products:create' %}">Post your first listing</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

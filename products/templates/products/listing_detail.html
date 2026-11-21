@@ -1,28 +1,98 @@
 {% extends 'base.html' %}
+{% load humanize %}
 {% block title %}{{ listing.title }}{% endblock %}
 
 {% block content %}
 <section class="section">
   <p><a class="btn btn-ghost" href="{% url 'products:index' %}">&larr; Back to listings</a></p>
-  <article class="card">
-    <img src="{{ listing.image.url }}" alt="{{ listing.title }}"
-         style="max-width: 32rem; border-radius: 10px;">
-    <h1>{{ listing.title }}</h1>
-    <p>
-      <span class="tag{% if listing.listing_type == 'FREE' %} tag-free{% elif listing.listing_type == 'TRADE' %} tag-trade{% endif %}">
-        {{ listing.display_price }}
-      </span>
-      <span class="badge{% if listing.listing_type == 'FREE' %} badge-free{% elif listing.listing_type == 'TRADE' %} badge-trade{% endif %}">
-        {{ listing.get_listing_type_display }}
-      </span>
-    </p>
-    <p class="help">
-      {{ listing.get_condition_display }} · {{ listing.category }} ·
-      {{ listing.get_status_display }} · Meet at {{ listing.meetup_spot }}
-    </p>
-    {% if listing.trade_for %}<p><strong>Wants in exchange:</strong> {{ listing.trade_for }}</p>{% endif %}
-    <p>{{ listing.description|linebreaksbr }}</p>
-    <p class="help">Posted by {{ listing.seller.display_name }} on {{ listing.created_at|date:"j M Y" }}</p>
-  </article>
+
+  <div class="detail">
+    <div>
+      <div class="detail-image{% if not listing.is_available %} is-{{ listing.status|lower }}{% endif %}">
+        <img src="{{ listing.image.url }}" alt="{{ listing.title }}">
+        {% if not listing.is_available %}
+        <span class="status-overlay">{{ listing.get_status_display|upper }}</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <div>
+      <p class="detail-tags">
+        <span class="tag{% if listing.listing_type == 'FREE' %} tag-free{% elif listing.listing_type == 'TRADE' %} tag-trade{% endif %}">
+          {{ listing.display_price }}
+        </span>
+        <span class="badge{% if listing.listing_type == 'FREE' %} badge-free{% elif listing.listing_type == 'TRADE' %} badge-trade{% endif %}">
+          {{ listing.get_listing_type_display }}
+        </span>
+        <span class="status status-{{ listing.status|lower }}">{{ listing.get_status_display }}</span>
+      </p>
+
+      <h1{% if listing.status == 'SOLD' %} class="struck"{% endif %}>{{ listing.title }}</h1>
+
+      <dl class="facts">
+        <dt>Condition</dt><dd>{{ listing.get_condition_display }}</dd>
+        <dt>Category</dt><dd><a href="{{ listing.category.get_absolute_url }}">{{ listing.category }}</a></dd>
+        <dt>Meet-up spot</dt><dd>{{ listing.meetup_spot }}</dd>
+        {% if listing.trade_for %}<dt>Wants in exchange</dt><dd>{{ listing.trade_for }}</dd>{% endif %}
+        <dt>Posted</dt><dd>{{ listing.created_at|naturaltime }}</dd>
+      </dl>
+
+      <p>{{ listing.description|linebreaksbr }}</p>
+
+      {% if is_owner %}
+      <div class="card owner-panel">
+        <strong>This is your listing</strong>
+        <p class="help">{{ listing.views }} view{{ listing.views|pluralize }}</p>
+        <p class="owner-actions">
+          <a class="btn btn-secondary" href="{% url 'products:edit' listing.slug %}">Edit</a>
+          <a class="btn btn-ghost" href="{% url 'products:delete' listing.slug %}">Delete</a>
+        </p>
+        <p class="owner-actions">
+          {% for value, label in listing.Status.choices %}
+          {% if value != listing.status %}
+          <form method="post" action="{% url 'products:mark_status' listing.slug value %}">
+            {% csrf_token %}
+            <button class="btn btn-secondary" type="submit">Mark {{ label|lower }}</button>
+          </form>
+          {% endif %}
+          {% endfor %}
+        </p>
+      </div>
+      {% endif %}
+
+      <div class="card seller-card">
+        {% if listing.seller.avatar %}
+        <img class="avatar" src="{{ listing.seller.avatar.url }}" alt="">
+        {% else %}
+        <span class="avatar" aria-hidden="true">{{ listing.seller.initials }}</span>
+        {% endif %}
+        <div>
+          <a href="{% url 'accounts:profile' listing.seller.username %}">
+            <strong>{{ listing.seller.display_name }}</strong>
+          </a>
+          <p class="help">
+            {% if listing.seller.course %}{{ listing.seller.course }} · {% endif %}
+            Member since {{ listing.seller.date_joined|date:"F Y" }}
+          </p>
+        </div>
+      </div>
+
+      {% if not is_owner %}
+        {% if user.is_authenticated %}
+          {% if can_contact %}
+          <a class="btn btn-accent" href="{{ whatsapp_url }}" target="_blank" rel="noopener">
+            Contact seller on WhatsApp
+          </a>
+          {% else %}
+          <p class="help">This seller has not added a phone number yet.</p>
+          {% endif %}
+        {% else %}
+        <a class="btn" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">
+          Log in to contact the seller
+        </a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
 </section>
 {% endblock %}
