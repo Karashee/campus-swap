@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
+    'accounts',
     'products',
 ]
 
@@ -68,6 +69,9 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+
+# Custom user model. Must be set before the project's first migrate.
+AUTH_USER_MODEL = 'accounts.User'
 
 TEMPLATES = [
     {
