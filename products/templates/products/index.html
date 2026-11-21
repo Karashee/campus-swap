@@ -1,14 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}Browse{% endblock %}
+{% block title %}{% if category %}{{ category }}{% else %}Browse{% endif %}{% endblock %}
 
 {% block content %}
 <section class="section">
   <div class="section-head">
-    <h1>Browse listings</h1>
+    <h1>{% if category %}{{ category }}{% else %}Browse listings{% endif %}</h1>
   </div>
+  {% if listings %}
+  <div class="grid">
+    {% for listing in listings %}{% include 'includes/listing_card.html' %}{% endfor %}
+  </div>
+  {% else %}
   <div class="empty">
     <p>No listings yet.</p>
     <a class="btn" href="{% url 'home' %}">Back home</a>
   </div>
+  {% endif %}
 </section>
 {% endblock %}

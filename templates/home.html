@@ -16,9 +16,15 @@
   <div class="section-head">
     <h2>Latest listings</h2>
   </div>
+  {% if latest_listings %}
+  <div class="grid">
+    {% for listing in latest_listings %}{% include 'includes/listing_card.html' %}{% endfor %}
+  </div>
+  {% else %}
   <div class="empty">
     <p>No listings yet.</p>
     <a class="btn" href="{% url 'products:index' %}">Post the first one</a>
   </div>
+  {% endif %}
 </section>
 {% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}{{ listing.title }}{% endblock %}
+
+{% block content %}
+<section class="section">
+  <p><a class="btn btn-ghost" href="{% url 'products:index' %}">&larr; Back to listings</a></p>
+  <article class="card">
+    <img src="{{ listing.image.url }}" alt="{{ listing.title }}"
+         style="max-width: 32rem; border-radius: 10px;">
+    <h1>{{ listing.title }}</h1>
+    <p>
+      <span class="tag{% if listing.listing_type == 'FREE' %} tag-free{% elif listing.listing_type == 'TRADE' %} tag-trade{% endif %}">
+        {{ listing.display_price }}
+      </span>
+      <span class="badge{% if listing.listing_type == 'FREE' %} badge-free{% elif listing.listing_type == 'TRADE' %} badge-trade{% endif %}">
+        {{ listing.get_listing_type_display }}
+      </span>
+    </p>
+    <p class="help">
+      {{ listing.get_condition_display }} · {{ listing.category }} ·
+      {{ listing.get_status_display }} · Meet at {{ listing.meetup_spot }}
+    </p>
+    {% if listing.trade_for %}<p><strong>Wants in exchange:</strong> {{ listing.trade_for }}</p>{% endif %}
+    <p>{{ listing.description|linebreaksbr }}</p>
+    <p class="help">Posted by {{ listing.seller.display_name }} on {{ listing.created_at|date:"j M Y" }}</p>
+  </article>
+</section>
+{% endblock %}
