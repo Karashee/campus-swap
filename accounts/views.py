@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model, login
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -7,7 +8,7 @@ from django.views.generic import UpdateView
 
 from products.models import Listing
 
-from .forms import ProfileForm, SignUpForm
+from .forms import LoginForm, ProfileForm, SignUpForm
 
 User = get_user_model()
 
@@ -29,6 +30,26 @@ def signup(request):
         form = SignUpForm()
 
     return render(request, 'registration/signup.html', {'form': form})
+
+
+class CampusLoginView(auth_views.LoginView):
+    """Django's LoginView plus an explicit session-lifetime choice."""
+
+    template_name = 'registration/login.html'
+    authentication_form = LoginForm
+    redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        # super() calls auth.login(), which cycles the session key, so the
+        # expiry has to be set after that or it would be discarded.
+        response = super().form_valid(form)
+        if form.cleaned_data.get('remember_me'):
+            # Fall back to SESSION_COOKIE_AGE (two weeks).
+            self.request.session.set_expiry(None)
+        else:
+            # 0 means "expire when the browser closes".
+            self.request.session.set_expiry(0)
+        return response
 
 
 def profile_detail(request, username):

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -96,6 +97,35 @@ class LoginTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertNotIn('_auth_user_id', self.client.session)
+
+
+class RememberMeSessionTests(TestCase):
+    """The session lifetime is an explicit choice at login."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user(
+            username='wanjiku',
+            email='wanjiku@strathmore.edu',
+            password='SwapItQuick42',
+        )
+
+    def _login(self, **extra):
+        return self.client.post(
+            reverse('accounts:login'),
+            {'username': 'wanjiku', 'password': 'SwapItQuick42', **extra},
+        )
+
+    def test_remember_me_uses_the_two_week_cookie_age(self):
+        self._login(remember_me='on')
+        self.assertEqual(
+            self.client.session.get_expiry_age(), settings.SESSION_COOKIE_AGE
+        )
+        self.assertFalse(self.client.session.get_expire_at_browser_close())
+
+    def test_without_remember_me_the_session_ends_with_the_browser(self):
+        self._login()
+        self.assertTrue(self.client.session.get_expire_at_browser_close())
 
 
 class LogoutTests(TestCase):

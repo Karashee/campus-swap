@@ -1,5 +1,6 @@
 from urllib.parse import quote
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
@@ -28,6 +29,35 @@ def available_listings():
     )
 
 
+RECENTLY_VIEWED_KEY = 'recently_viewed'
+
+
+def remember_viewed(request, listing):
+    """Keep the last few listing ids this visitor opened in their session.
+
+    Most recent first, no duplicates, and the visitor's own listings are
+    skipped by the caller.
+    """
+    limit = getattr(settings, 'RECENTLY_VIEWED_LIMIT', 5)
+    viewed = [pk for pk in request.session.get(RECENTLY_VIEWED_KEY, []) if pk != listing.pk]
+    viewed.insert(0, listing.pk)
+    request.session[RECENTLY_VIEWED_KEY] = viewed[:limit]
+
+
+def recently_viewed_listings(request):
+    """The session's recently viewed listings, still in session order."""
+    pks = request.session.get(RECENTLY_VIEWED_KEY, [])
+    if not pks:
+        return []
+
+    by_pk = {
+        listing.pk: listing
+        for listing in Listing.objects.select_related('seller', 'category').filter(pk__in=pks)
+    }
+    # Keep the session's order, and drop anything since deleted.
+    return [by_pk[pk] for pk in pks if pk in by_pk]
+
+
 def categories_with_counts():
     """Categories annotated with how many available listings they hold."""
     return Category.objects.annotate(
@@ -49,6 +79,7 @@ def home(request):
         'searching': searching,
         'result_count': listings.count() if searching else None,
         'categories': categories_with_counts(),
+        'recently_viewed': recently_viewed_listings(request),
     })
 
 
@@ -91,6 +122,8 @@ class ListingDetailView(DetailView):
             # at the same time can't overwrite each other's count.
             Listing.objects.filter(pk=listing.pk).update(views=F('views') + 1)
             listing.views += 1
+            # Own listings are deliberately left out of "recently viewed".
+            remember_viewed(self.request, listing)
         return listing
 
     def get_context_data(self, **kwargs):

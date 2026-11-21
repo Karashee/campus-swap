@@ -51,6 +51,14 @@ class SignUpForm(FormStyleMixin, UserCreationForm):
 class LoginForm(FormStyleMixin, AuthenticationForm):
     """Log in with either the email address or the username."""
 
+    remember_me = forms.BooleanField(
+        required=False,
+        initial=True,
+        label='Keep me logged in',
+        help_text='Leave this off on a shared computer: you will be logged out '
+                  'when the browser closes.',
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['username'].label = 'Email or username'

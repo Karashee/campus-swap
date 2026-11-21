@@ -219,6 +219,53 @@ class DetailViewTests(ListingTestBase):
         self.assertNotContains(response, 'wa.me')
 
 
+class RecentlyViewedSessionTests(ListingTestBase):
+    """Recently viewed listings are tracked in request.session."""
+
+    def setUp(self):
+        self.first = self.make_listing(title='Calculus 8th ed')
+        self.second = self.make_listing(title='Casio fx-991ES')
+        self.mine = self.make_listing(title='My own hoodie', seller=self.other)
+
+    def test_viewing_listings_records_them_most_recent_first(self):
+        self.client.get(self.first.get_absolute_url())
+        self.client.get(self.second.get_absolute_url())
+        self.assertEqual(
+            self.client.session['recently_viewed'],
+            [self.second.pk, self.first.pk],
+        )
+
+    def test_revisiting_moves_it_to_the_front_without_duplicating(self):
+        self.client.get(self.first.get_absolute_url())
+        self.client.get(self.second.get_absolute_url())
+        self.client.get(self.first.get_absolute_url())
+        self.assertEqual(
+            self.client.session['recently_viewed'],
+            [self.first.pk, self.second.pk],
+        )
+
+    def test_your_own_listings_are_not_recorded(self):
+        self.client.force_login(self.other)
+        self.client.get(self.mine.get_absolute_url())
+        self.assertNotIn('recently_viewed', self.client.session)
+
+    def test_only_the_last_five_are_kept(self):
+        listings = [self.make_listing(title=f'Item {i}') for i in range(7)]
+        for listing in listings:
+            self.client.get(listing.get_absolute_url())
+        recorded = self.client.session['recently_viewed']
+        self.assertEqual(len(recorded), 5)
+        self.assertEqual(recorded, [l.pk for l in reversed(listings[-5:])])
+
+    def test_home_page_shows_the_recently_viewed_strip(self):
+        self.client.get(self.first.get_absolute_url())
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'Recently viewed')
+        self.assertEqual(
+            [l.pk for l in response.context['recently_viewed']], [self.first.pk]
+        )
+
+
 class SearchTests(ListingTestBase):
     def setUp(self):
         self.make_listing(title='Calculus 8th ed')

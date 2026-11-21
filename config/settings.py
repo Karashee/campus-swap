@@ -84,6 +84,13 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+# Sessions. Two weeks for "keep me logged in"; LoginView switches the session
+# to a browser-length cookie when that box is left unchecked.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
+
+#: How many recently viewed listings to keep in the session.
+RECENTLY_VIEWED_LIMIT = 5
+
 LOGIN_URL = 'accounts:login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'home'

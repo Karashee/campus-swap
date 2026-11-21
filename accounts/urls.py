@@ -3,7 +3,6 @@ from django.urls import path, reverse_lazy
 
 from . import views
 from .forms import (
-    LoginForm,
     StyledPasswordChangeForm,
     StyledPasswordResetForm,
     StyledSetPasswordForm,
@@ -13,15 +12,7 @@ app_name = 'accounts'
 
 urlpatterns = [
     path('signup/', views.signup, name='signup'),
-    path(
-        'login/',
-        auth_views.LoginView.as_view(
-            template_name='registration/login.html',
-            authentication_form=LoginForm,
-            redirect_authenticated_user=True,
-        ),
-        name='login',
-    ),
+    path('login/', views.CampusLoginView.as_view(), name='login'),
     # POST only: Django 5+ removed GET logout, which is why the navbar uses a form.
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 

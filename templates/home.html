@@ -51,4 +51,21 @@
   </div>
   {% endif %}
 </section>
+
+{% if recently_viewed %}
+<section class="section recent">
+  <div class="section-head">
+    <h2>Recently viewed</h2>
+  </div>
+  <div class="recent-strip">
+    {% for listing in recently_viewed %}
+    <a class="recent-item" href="{{ listing.get_absolute_url }}">
+      <img src="{{ listing.image.url }}" alt="{{ listing.title }}" loading="lazy">
+      <span class="recent-title{% if listing.status == 'SOLD' %} struck{% endif %}">{{ listing.title }}</span>
+      <span class="help">{{ listing.display_price }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}
