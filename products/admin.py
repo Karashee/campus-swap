@@ -16,6 +16,13 @@ class CategoryAdmin(admin.ModelAdmin):
         return obj.listings.count()
 
 
+#: Extra stylesheet for the listing admin pages. The CSS lives in a static
+#: file rather than in style="..." attributes, because the project's
+#: Content-Security-Policy allows no inline styles, so the browser would drop
+#: them (see static/css/admin-extras.css).
+ADMIN_EXTRA_CSS = {'all': ('css/admin-extras.css',)}
+
+
 class ListingImageInline(admin.TabularInline):
     """The gallery, edited alongside the listing. Lowest order is the cover."""
 
@@ -26,13 +33,16 @@ class ListingImageInline(admin.TabularInline):
     readonly_fields = ('preview',)
     ordering = ('order', 'pk')
 
+    class Media:
+        css = ADMIN_EXTRA_CSS
+
     @admin.display(description='')
     def preview(self, obj):
         if not obj.pk or not obj.image:
+            # An empty slot, not a listing without photos: nothing to label.
             return '—'
         return format_html(
-            '<img src="{}" style="width:90px;height:68px;object-fit:cover;border-radius:6px;">',
-            obj.image.url,
+            '<img class="cs-thumb cs-thumb-lg" src="{}" alt="">', obj.image.url
         )
 
 
@@ -51,6 +61,9 @@ class ListingAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
     inlines = (ListingImageInline,)
 
+    class Media:
+        css = ADMIN_EXTRA_CSS
+
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
@@ -60,13 +73,18 @@ class ListingAdmin(admin.ModelAdmin):
 
     @admin.display(description='')
     def thumbnail(self, obj):
+        """The cover photo, or a labelled placeholder if there is none.
+
+        Listings created through the API have no photos, so this column would
+        otherwise be a column of dashes (or, worse, broken images).
+        """
         cover = obj.cover
         if not cover:
-            return '—'
-        return format_html(
-            '<img src="{}" style="width:56px;height:42px;object-fit:cover;border-radius:6px;">',
-            cover.image.url,
-        )
+            return format_html(
+                '<span class="cs-no-photo"><strong>{}</strong>no photo</span>',
+                obj.category.name,
+            )
+        return format_html('<img class="cs-thumb" src="{}" alt="">', cover.image.url)
 
     @admin.display(description='Price')
     def display_price(self, obj):
@@ -77,3 +95,5 @@ class ListingAdmin(admin.ModelAdmin):
 class SavedListingAdmin(admin.ModelAdmin):
     list_display = ('user', 'listing', 'created_at')
     search_fields = ('user__username', 'listing__title')
+    # One query for the list page instead of two per row.
+    list_select_related = ('user', 'listing')

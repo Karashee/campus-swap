@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from products.models import Category, Listing, ListingImage
 
@@ -101,17 +101,53 @@ def shade(colour, step):
     return tuple(min(255, channel + step * 28) for channel in colour)
 
 
+#: TrueType fonts to try, in order, for the placeholder titles. Pillow's own
+#: bitmap default font is about 11px tall whatever you ask for, which is
+#: unreadable on an 800x600 photo, so a scalable font is worth hunting for.
+FONT_CANDIDATES = [
+    'C:/Windows/Fonts/arialbd.ttf',          # Windows
+    'C:/Windows/Fonts/segoeuib.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',  # Linux
+    '/System/Library/Fonts/Supplemental/Arial Bold.ttf',     # macOS
+]
+
+
+def title_font(size):
+    """A bold scalable font at ``size`` px, whatever the machine has."""
+    for path in FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    # Pillow ships a scalable fallback; load_default(size=...) uses it.
+    return ImageFont.load_default(size=size)
+
+
 def placeholder_image(title, colour, label=''):
-    """A solid-colour 800x600 JPEG with the item title wrapped on it."""
+    """A solid-colour 800x600 JPEG with the item title written large on it.
+
+    Readable from across the room, because these stand in for real photos in
+    the demo data and on the project screenshots.
+    """
     image = Image.new('RGB', (800, 600), colour)
     draw = ImageDraw.Draw(image)
-    lines = textwrap.wrap(f'{title}{label}', width=22) or ['Listing']
-    line_height = 34
+    paper = (250, 247, 242)
+
+    lines = textwrap.wrap(f'{title}{label}', width=16) or ['Listing']
+    # Long titles get a smaller size so four lines still fit the frame.
+    size = 64 if len(lines) <= 2 else (54 if len(lines) == 3 else 44)
+    font = title_font(size)
+    line_height = int(size * 1.25)
+
     y = 300 - (len(lines) * line_height) // 2
     for line in lines:
-        left, top, right, bottom = draw.textbbox((0, 0), line)
-        draw.text((400 - (right - left) / 2, y), line, fill=(250, 247, 242))
+        draw.text((400, y), line, font=font, fill=paper, anchor='ma')
         y += line_height
+
+    # A thin inset border, so the placeholder reads as a deliberate card
+    # rather than as a photo that failed to load.
+    draw.rectangle((24, 24, 776, 576), outline=paper, width=2)
+
     buffer = BytesIO()
     image.save(buffer, format='JPEG', quality=85)
     return ContentFile(buffer.getvalue())

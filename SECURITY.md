@@ -101,7 +101,8 @@ class OwnerListingMixin(LoginRequiredMixin):
 | View | Who | How |
 | --- | --- | --- |
 | home, browse, category, listing detail, public profile | anyone | no check needed |
-| create listing, my listings | logged in | `LoginRequiredMixin` |
+| create listing, my listings, saved listings | logged in | `LoginRequiredMixin` |
+| save / unsave a listing | logged in, for yourself only | `@require_POST` + the row is written for `request.user`; the `next` it returns to goes through `safe_next_url()` |
 | edit listing, delete listing | the seller | queryset filtered by `seller` → 404 |
 | mark sold/reserved/available | the seller | `@require_POST` + `get_object_or_404(..., seller=request.user)` |
 | edit profile | yourself | `get_object()` returns `request.user`; there is no pk in the URL |

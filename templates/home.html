@@ -53,6 +53,8 @@
     <a class="recent-item" href="{{ listing.get_absolute_url }}">
       {% if listing.cover %}
       <img src="{{ listing.cover.image.url }}" alt="{{ listing.title }}" loading="lazy">
+      {% else %}
+      {% include 'includes/no_photo.html' with variant='mini' %}
       {% endif %}
       <span class="recent-title{% if listing.status == 'SOLD' %} struck{% endif %}">{{ listing.title }}</span>
       <span class="help">{{ listing.display_price }}</span>

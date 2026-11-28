@@ -15,7 +15,7 @@ from products.imaging import (
     UnidentifiedImageError,
     process_upload,
 )
-from products.models import Category, Listing, ListingImage
+from products.models import Category, Listing, ListingImage, SavedListing
 
 User = get_user_model()
 
@@ -433,7 +433,7 @@ class DetailViewTests(ListingTestBase):
 
     def test_anonymous_user_is_asked_to_log_in_to_contact(self):
         response = self.client.get(self.listing.get_absolute_url())
-        self.assertContains(response, 'Log in to contact the seller')
+        self.assertContains(response, 'Log in to contact or save')
         self.assertNotContains(response, 'wa.me')
 
     def test_logged_in_non_owner_sees_the_whatsapp_link(self):
@@ -772,3 +772,173 @@ class MyListingsTests(ListingTestBase):
         response = self.client.get(reverse('products:my_listings'), {'status': 'SOLD'})
         self.assertContains(response, 'Gone already')
         self.assertNotContains(response, 'Still here')
+
+
+class SavedListingTests(ListingTestBase):
+    """Saving and unsaving other students' listings, and the /saved/ page."""
+
+    def setUp(self):
+        self.listing = self.make_listing(title='Calculus 8th ed')
+        self.save_url = reverse('products:toggle_save', args=[self.listing.slug])
+
+    def saved_rows(self, user=None):
+        return SavedListing.objects.filter(user=user or self.other)
+
+    def test_posting_once_saves_the_listing(self):
+        self.client.force_login(self.other)
+        response = self.client.post(self.save_url)
+        self.assertRedirects(response, self.listing.get_absolute_url())
+        self.assertEqual(self.saved_rows().count(), 1)
+        self.assertEqual(self.saved_rows().get().listing, self.listing)
+
+    def test_posting_again_unsaves_it(self):
+        self.client.force_login(self.other)
+        self.client.post(self.save_url)
+        self.client.post(self.save_url)
+        self.assertEqual(self.saved_rows().count(), 0)
+
+    def test_the_button_returns_you_to_the_page_you_clicked_it_on(self):
+        self.client.force_login(self.other)
+        response = self.client.post(self.save_url, {'next': '/browse/?q=calculus'})
+        self.assertRedirects(
+            response, '/browse/?q=calculus', fetch_redirect_response=False
+        )
+
+    def test_an_off_site_next_is_ignored(self):
+        """``next`` is attacker-controlled; it must stay on this site."""
+        self.client.force_login(self.other)
+        response = self.client.post(
+            self.save_url, {'next': 'https://evil.example/phish'}
+        )
+        self.assertRedirects(response, self.listing.get_absolute_url())
+
+    def test_get_is_rejected(self):
+        self.client.force_login(self.other)
+        response = self.client.get(self.save_url)
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(self.saved_rows().count(), 0)
+
+    def test_an_anonymous_visitor_is_sent_to_login_and_saves_nothing(self):
+        response = self.client.post(self.save_url, {'next': '/browse/'})
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('accounts:login'), response['Location'])
+        # The save URL is POST-only, so next is the page the button was on.
+        self.assertIn('next=/browse/', response['Location'])
+        self.assertEqual(SavedListing.objects.count(), 0)
+
+    def test_saving_an_unknown_listing_is_a_404(self):
+        self.client.force_login(self.other)
+        response = self.client.post(
+            reverse('products:toggle_save', args=['no-such-listing'])
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_the_saved_page_requires_login(self):
+        url = reverse('products:saved')
+        self.assertRedirects(
+            self.client.get(url), f'{reverse("accounts:login")}?next={url}'
+        )
+
+    def test_the_saved_page_shows_your_saves_most_recent_first(self):
+        other_listing = self.make_listing(title='Casio fx-991ES')
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        SavedListing.objects.create(user=self.other, listing=other_listing)
+
+        self.client.force_login(self.other)
+        response = self.client.get(reverse('products:saved'))
+        self.assertEqual(
+            [listing.title for listing in response.context['listings']],
+            ['Casio fx-991ES', 'Calculus 8th ed'],
+        )
+
+    def test_the_saved_page_shows_nobody_elses_saves(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('products:saved'))
+        self.assertEqual(list(response.context['listings']), [])
+        self.assertContains(response, 'Nothing saved yet')
+
+    def test_a_listing_saved_by_two_students_appears_once(self):
+        third = User.objects.create_user(
+            username='amina', email='amina@strathmore.edu', password='SwapItQuick42'
+        )
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        SavedListing.objects.create(user=third, listing=self.listing)
+
+        self.client.force_login(self.other)
+        response = self.client.get(reverse('products:saved'))
+        self.assertEqual(len(response.context['listings']), 1)
+
+    def test_the_card_offers_save_on_someone_elses_listing(self):
+        self.client.force_login(self.other)
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, f'action="{self.save_url}"')
+        self.assertContains(response, 'aria-pressed="false"')
+
+    def test_the_card_shows_the_saved_state_once_it_is_saved(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        self.client.force_login(self.other)
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'aria-pressed="true"')
+
+    def test_there_is_no_save_button_on_your_own_listing(self):
+        self.client.force_login(self.owner)
+        for url in [reverse('home'), self.listing.get_absolute_url()]:
+            with self.subTest(url=url):
+                self.assertNotContains(
+                    self.client.get(url), f'action="{self.save_url}"'
+                )
+
+    def test_an_anonymous_visitor_gets_no_save_button(self):
+        response = self.client.get(reverse('home'))
+        self.assertNotContains(response, f'action="{self.save_url}"')
+
+    def test_the_owner_sees_how_many_students_saved_the_listing(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        self.client.force_login(self.owner)
+        response = self.client.get(self.listing.get_absolute_url())
+        self.assertContains(response, 'saved by 1 student')
+
+    def test_deleting_a_listing_removes_it_from_saved_lists(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        self.listing.delete()
+        self.assertEqual(SavedListing.objects.count(), 0)
+
+
+class NoPhotoPlaceholderTests(ListingTestBase):
+    """Listings posted through the API have no photos (see api/views.py).
+
+    Cards, the detail page and the recently viewed strip must show a labelled
+    block instead of an empty frame or a broken <img>.
+    """
+
+    def setUp(self):
+        self.listing = self.make_listing(title='Lab coat', photos=0)
+
+    def assertPlaceholder(self, response):
+        self.assertContains(response, 'no-photo')
+        self.assertContains(response, 'No photo yet')
+        # An <img> with no src is what a broken image looks like.
+        self.assertNotContains(response, '<img src=""')
+
+    def test_the_card_shows_the_placeholder_with_the_category(self):
+        response = self.client.get(reverse('home'))
+        self.assertPlaceholder(response)
+        self.assertContains(response, self.category.name)
+
+    def test_the_detail_page_shows_the_placeholder(self):
+        response = self.client.get(self.listing.get_absolute_url())
+        self.assertPlaceholder(response)
+        # No gallery and no lightbox: there is nothing to page through.
+        self.assertNotContains(response, 'id="lightbox"')
+
+    def test_the_recently_viewed_strip_shows_the_placeholder(self):
+        self.client.get(self.listing.get_absolute_url())
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'no-photo-mini')
+
+    def test_a_listing_with_a_photo_shows_the_photo_instead(self):
+        with_photo = self.make_listing(title='Hotplate', photos=1)
+        response = self.client.get(with_photo.get_absolute_url())
+        self.assertNotContains(response, 'no-photo')
+        self.assertContains(response, with_photo.cover.image.url)

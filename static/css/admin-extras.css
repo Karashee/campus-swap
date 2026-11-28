@@ -1,0 +1,45 @@
+/* Small additions to Django's admin skin, loaded through ModelAdmin.Media.
+   These used to be inline style="..." attributes inside format_html(). The
+   Content-Security-Policy from chunk B7 has no 'unsafe-inline' in style-src,
+   so the browser dropped them and the thumbnails rendered at full size.
+   A static file is covered by style-src 'self'. */
+
+.cs-thumb {
+  width: 56px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+}
+
+.cs-thumb-lg {
+  width: 90px;
+  height: 68px;
+}
+
+/* Stand-in for a listing with no photos, e.g. one posted through the API.
+   Same idea as .no-photo on the public site: a labelled block, never a
+   broken image. */
+.cs-no-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 42px;
+  padding: 2px;
+  border: 1px dashed #c9c4bb;
+  border-radius: 6px;
+  background: #faf7f2;
+  color: #5b6170;
+  font-size: 9px;
+  line-height: 1.1;
+  text-align: center;
+  overflow: hidden;
+}
+
+.cs-no-photo strong {
+  font-size: 9px;
+  font-weight: 700;
+  color: #14171f;
+}

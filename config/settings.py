@@ -120,6 +120,9 @@ TEMPLATES = [
                 # Puts the per-response nonce in the template context so
                 # {% csp_nonce_attr %} can mark our own inline scripts.
                 'django.template.context_processors.csp',
+                # Which listings the visitor has saved, for the save buttons
+                # on the listing cards. Lazy, so it costs nothing elsewhere.
+                'products.context_processors.saved_listings',
             ],
         },
     },

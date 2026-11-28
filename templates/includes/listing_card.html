@@ -1,29 +1,42 @@
-{# One listing in a grid. Expects `listing`. #}
-<a class="card card-link listing-card" href="{{ listing.get_absolute_url }}">
-  <div class="listing-card-image">
-    {% if listing.cover %}
-    <img src="{{ listing.cover.image.url }}" alt="{{ listing.title }}" loading="lazy">
-    {% else %}
-    <span class="listing-card-noimage" aria-hidden="true">No photo</span>
-    {% endif %}
-    {% if listing.photo_count > 1 %}
-    <span class="photo-count" aria-label="{{ listing.photo_count }} photos">
-      {{ listing.photo_count }} photos
-    </span>
-    {% endif %}
-    {% if not listing.is_available %}
-    <span class="status-overlay">{{ listing.get_status_display|upper }}</span>
-    {% endif %}
-  </div>
+{% comment %}
+One listing in a grid. Expects `listing`.
 
-  <p class="listing-card-tag">
-    <span class="tag{% if listing.listing_type == 'FREE' %} tag-free{% elif listing.listing_type == 'TRADE' %} tag-trade{% endif %}">
-      {{ listing.display_price }}
-    </span>
-  </p>
+The card is a div, not an anchor: the save button is a form, and a form
+inside a link would be an interactive control inside an interactive one.
+Everything except that button is still a single click target.
+{% endcomment %}
+<div class="card listing-card">
+  <a class="listing-card-link" href="{{ listing.get_absolute_url }}">
+    <div class="listing-card-image">
+      {% if listing.cover %}
+      <img src="{{ listing.cover.image.url }}" alt="{{ listing.title }}" loading="lazy">
+      {% else %}
+      {% include 'includes/no_photo.html' with variant='card' %}
+      {% endif %}
+      {% if listing.photo_count > 1 %}
+      <span class="photo-count" aria-label="{{ listing.photo_count }} photos">
+        {{ listing.photo_count }} photos
+      </span>
+      {% endif %}
+      {% if not listing.is_available %}
+      <span class="status-overlay">{{ listing.get_status_display|upper }}</span>
+      {% endif %}
+    </div>
 
-  <strong class="listing-card-title{% if listing.status == 'SOLD' %} struck{% endif %}">
-    {{ listing.title }}
-  </strong>
-  <span class="help">{{ listing.get_condition_display }} · {{ listing.category }}</span>
-</a>
+    <p class="listing-card-tag">
+      <span class="tag{% if listing.listing_type == 'FREE' %} tag-free{% elif listing.listing_type == 'TRADE' %} tag-trade{% endif %}">
+        {{ listing.display_price }}
+      </span>
+    </p>
+
+    <strong class="listing-card-title{% if listing.status == 'SOLD' %} struck{% endif %}">
+      {{ listing.title }}
+    </strong>
+    <span class="help">{{ listing.get_condition_display }} &middot; {{ listing.category }}</span>
+  </a>
+
+  {# Your own listings get the My listings page instead of a save button. #}
+  {% if user.is_authenticated and user.pk != listing.seller_id %}
+  {% include 'includes/save_button.html' with variant='card' %}
+  {% endif %}
+</div>

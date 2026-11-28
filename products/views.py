@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Max, Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
@@ -18,8 +18,10 @@ from django.views.generic import (
     UpdateView,
 )
 
+from config.redirects import safe_next_url
+
 from .forms import ListingForm, ListingSearchForm, build_image_formset
-from .models import Category, Listing
+from .models import Category, Listing, SavedListing
 
 
 def listing_queryset():
@@ -178,6 +180,13 @@ class ListingDetailView(DetailView):
 
         is_owner = user.is_authenticated and listing.seller_id == user.pk
         context['is_owner'] = is_owner
+        if is_owner:
+            # Shown in the owner panel beside the view count, so a seller can
+            # see the interest in an item before anyone messages them.
+            context['save_count'] = listing.saved_by.count()
+        # The save button is for other people's listings; saving your own
+        # would just be a second copy of "My listings".
+        context['can_save'] = user.is_authenticated and not is_owner
         # Evaluated once here so the gallery and the lightbox iterate the same
         # prefetched list instead of hitting the database again.
         context['photos'] = list(listing.images.all())
@@ -340,6 +349,54 @@ class MyListingsView(LoginRequiredMixin, ListView):
             ),
         ]
         return context
+
+
+class SavedListingsView(LoginRequiredMixin, ListView):
+    """The listings this student has bookmarked, most recently saved first."""
+
+    template_name = 'products/saved.html'
+    context_object_name = 'listings'
+    paginate_by = 12
+
+    def get_queryset(self):
+        # annotate() after filter() reuses the join the filter made, so
+        # ``saved_at`` is this student's own save time and each listing still
+        # appears once. Ordering on saved_by__created_at directly would add a
+        # second join and could repeat rows.
+        return (
+            listing_queryset()
+            .filter(saved_by__user=self.request.user)
+            .annotate(saved_at=Max('saved_by__created_at'))
+            .order_by('-saved_at')
+        )
+
+
+@require_POST
+def toggle_save(request, slug):
+    """Save or unsave a listing for the logged-in student. POST only.
+
+    One endpoint for both directions: the button posts, the view looks at
+    whether the row exists and flips it, so a double click cannot end up
+    saving the same listing twice (the unique constraint would raise).
+    """
+    listing_url = reverse('products:detail', kwargs={'slug': slug})
+    if not request.user.is_authenticated:
+        # ``next`` is where the button was clicked, so they come back to the
+        # same browse page after logging in. This URL itself is POST-only, so
+        # it would 405 if it were used as the target.
+        return redirect_to_login(safe_next_url(request, listing_url))
+
+    listing = get_object_or_404(Listing, slug=slug)
+    existing = SavedListing.objects.filter(user=request.user, listing=listing)
+    if existing.exists():
+        existing.delete()
+        messages.success(request, f'Removed "{listing.title}" from your saved listings.')
+    else:
+        SavedListing.objects.get_or_create(user=request.user, listing=listing)
+        messages.success(request, f'Saved "{listing.title}" to your saved listings.')
+
+    # Back where they came from, but only if that is a page on this site.
+    return redirect(safe_next_url(request, listing_url))
 
 
 @require_POST

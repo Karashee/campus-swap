@@ -16,7 +16,7 @@
                id="gallery-main-image" data-index="0">
         </button>
         {% else %}
-        <div class="gallery-main gallery-empty">No photo</div>
+        {% include 'includes/no_photo.html' with variant='detail' %}
         {% endif %}
         {% if not listing.is_available %}
         <span class="status-overlay">{{ listing.get_status_display|upper }}</span>
@@ -67,7 +67,10 @@
       {% if is_owner %}
       <div class="card owner-panel">
         <strong>This is your listing</strong>
-        <p class="help">{{ listing.views }} view{{ listing.views|pluralize }}</p>
+        <p class="help">
+          {{ listing.views }} view{{ listing.views|pluralize }} &middot;
+          saved by {{ save_count }} student{{ save_count|pluralize }}
+        </p>
         <p class="owner-actions">
           <a class="btn btn-secondary" href="{% url 'products:edit' listing.slug %}">Edit</a>
           <a class="btn btn-ghost" href="{% url 'products:delete' listing.slug %}">Delete</a>
@@ -103,19 +106,23 @@
       </div>
 
       {% if not is_owner %}
+      <div class="detail-actions">
         {% if user.is_authenticated %}
           {% if can_contact %}
           <a class="btn btn-accent" href="{{ whatsapp_url }}" target="_blank" rel="noopener">
             Contact seller on WhatsApp
           </a>
-          {% else %}
+          {% endif %}
+          {% if can_save %}{% include 'includes/save_button.html' with variant='detail' %}{% endif %}
+          {% if not can_contact %}
           <p class="help">This seller has not added a phone number yet.</p>
           {% endif %}
         {% else %}
         <a class="btn" href="{% url 'accounts:login' %}?next={{ request.path|urlencode }}">
-          Log in to contact the seller
+          Log in to contact or save
         </a>
         {% endif %}
+      </div>
       {% endif %}
     </div>
   </div>

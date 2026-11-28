@@ -1,0 +1,11 @@
+{% comment %}
+Stand-in for a listing with no photos, e.g. one posted through the API.
+Expects `listing`; `variant` is card (the default), detail or mini.
+
+aria-hidden, because the category and the title are already in the text
+around it, so there is nothing here for a screen reader to announce.
+{% endcomment %}
+<div class="no-photo no-photo-{{ variant|default:'card' }}" aria-hidden="true">
+  <span class="no-photo-category">{{ listing.category.name }}</span>
+  <span class="no-photo-note">No photo yet</span>
+</div>

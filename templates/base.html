@@ -31,6 +31,7 @@
           <div class="user-menu-items" id="user-menu-items" hidden>
             <a href="{% url 'accounts:profile' user.username %}">My profile</a>
             <a href="{% url 'products:my_listings' %}">My listings</a>
+            <a href="{% url 'products:saved' %}">Saved listings</a>
             <a href="{% url 'accounts:profile_edit' %}">Edit profile</a>
             <a href="{% url 'accounts:password_change' %}">Change password</a>
             {# Logout must be POST: Django 5+ removed GET logout. #}

@@ -15,7 +15,7 @@ from django.urls import get_resolver, reverse
 from rest_framework.authtoken.models import Token
 
 from config.redirects import safe_next_url
-from products.models import Category, Listing, ListingImage
+from products.models import Category, Listing, ListingImage, SavedListing
 
 from products.tests import an_image
 
@@ -86,6 +86,7 @@ PUBLIC_URLS = {
 LOGIN_REQUIRED_URLS = {
     'products:create': {},
     'products:my_listings': {},
+    'products:saved': {},
     'products:edit': {'slug': None},
     'products:delete': {'slug': None},
     'accounts:profile_edit': {},
@@ -124,6 +125,9 @@ API_OWNER_ONLY_WRITES = {
 UNCHECKED_URLS = {
     # POST-only, so it has its own tests rather than a GET check.
     'products:mark_status': 'POST-only, covered by MarkStatusTests',
+    'products:toggle_save': (
+        'POST-only, covered by SavedListingTests and SavedListingSecurityTests'
+    ),
     'accounts:logout': 'POST-only, covered by LogoutTests',
     # Reached only through a one-time emailed token.
     'accounts:password_reset_confirm': 'token URL, covered by PasswordResetTests',
@@ -277,6 +281,54 @@ class OwnershipTests(SecurityTestBase):
     def test_my_listings_shows_only_your_own(self):
         self.client.force_login(self.other)
         response = self.client.get(reverse('products:my_listings'))
+        self.assertNotContains(response, 'Calculus 8th ed')
+
+
+class SavedListingSecurityTests(SecurityTestBase):
+    """A save belongs to the student who made it.
+
+    The save button is a write that any logged-in student may make against
+    any listing, so what matters here is that the row it writes is always
+    *theirs*: the user comes from the session, never from the request body,
+    and one student's click cannot touch another student's list.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse(
+            'products:toggle_save', kwargs={'slug': self.listing.slug}
+        )
+
+    def test_an_anonymous_post_saves_nothing(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('accounts:login'), response['Location'])
+        self.assertFalse(SavedListing.objects.exists())
+
+    def test_the_save_is_recorded_against_the_logged_in_student(self):
+        """A posted 'user' is ignored: the view uses request.user."""
+        self.client.force_login(self.other)
+        self.client.post(self.url, {'user': self.owner.pk})
+        save = SavedListing.objects.get()
+        self.assertEqual(save.user, self.other)
+
+    def test_one_student_cannot_unsave_another_students_save(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+
+        self.client.force_login(self.staff)
+        self.client.post(self.url)  # saves it for the staff account
+
+        self.assertTrue(
+            SavedListing.objects.filter(
+                user=self.other, listing=self.listing
+            ).exists()
+        )
+        self.assertEqual(SavedListing.objects.count(), 2)
+
+    def test_the_saved_page_shows_only_your_own_saves(self):
+        SavedListing.objects.create(user=self.other, listing=self.listing)
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse('products:saved'))
         self.assertNotContains(response, 'Calculus 8th ed')
 
 
@@ -443,6 +495,9 @@ class CsrfTests(SecurityTestBase):
                 'products:mark_status',
                 kwargs={'slug': self.listing.slug, 'status': 'SOLD'},
             ),
+            'products:toggle_save': reverse(
+                'products:toggle_save', kwargs={'slug': self.listing.slug}
+            ),
         }
 
     def test_a_post_without_a_csrf_token_is_refused(self):
@@ -607,6 +662,7 @@ class ContentSecurityPolicyTests(SecurityTestBase):
             reverse('products:edit', kwargs={'slug': self.listing.slug}),
             reverse('products:delete', kwargs={'slug': self.listing.slug}),
             reverse('products:my_listings'),
+            reverse('products:saved'),
             reverse('accounts:profile_edit'),
             reverse('accounts:password_change'),
             reverse('accounts:profile', kwargs={'username': 'wanjiku'}),
