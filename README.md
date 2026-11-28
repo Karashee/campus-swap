@@ -13,24 +13,31 @@ by Andrew Karanja (167144).
 **Trade details and photos:** trade field plus up to five photos (inline formset)
 ![Sell form photos](docs/screenshots/sell-form-photos.png)
 
+
 **Listing detail:** photo gallery, price tag, seller card and contact button
 ![Listing detail](docs/screenshots/listing-detail.png)
 
+
 **Owner view:** the seller's panel to edit, delete and mark an item reserved or sold
 ![Listing detail owner](docs/screenshots/listing-detail-owner.png)
+
 
 ### Accounts
 **Log in:** email or username, with a "keep me logged in" option (session expiry)
 ![Login](docs/screenshots/login.png)
 
+
 **Sign up:** restricted to Strathmore email addresses
 ![Sign up](docs/screenshots/signup.png)
+
 
 **Running locally:** the sign-up page served by the Django dev server
 ![Sign up in browser](docs/screenshots/signup-browser.png)
 
+
 **Edit profile:** phone, course, year of study, bio and avatar
 ![Profile edit](docs/screenshots/profile-edit.png)
+
 
 ### Saved listings
 **Saved items:** listings a student has starred to come back to
@@ -125,49 +132,6 @@ their own listing page doubles as a record of what moved.
   redirects, uploads identified by content rather than file extension, and a Content-Security-Policy
   with per-response nonces instead of `unsafe-inline`
 
-## Screenshots
-
-The landing page is the image at the top of this README. The rest of the walk-through, in the
-order a student meets it:
-
-### Posting and viewing an item
-
-![The Sell an item form](docs/screenshots/sell-form.png)
-*Sell an item: title, category, the segmented Sell / Trade / Free and condition buttons, price and
-meet-up spot. The avatar menu is open on the right.*
-
-![The photo formset at the bottom of the Sell an item form](docs/screenshots/sell-form-photos.png)
-*The bottom of the same form: "what do you want in exchange" for a trade listing, and the photo
-formset — up to five slots, the first one becoming the cover.*
-
-![A listing detail page](docs/screenshots/listing-detail.png)
-*A listing detail page: the uploaded photo, the Trade tag and badges, the facts list, the owner
-panel with Edit / Delete / Mark reserved / Mark sold, and the seller card.*
-
-![A trade listing with a photo gallery](docs/screenshots/listing-detail-owner.png)
-*Another listing, this one seeded by `seed_demo`: four generated placeholder photos with
-thumbnails and arrow-key navigation, and the owner panel showing views and saves.*
-
-### Accounts
-
-![The log in page](docs/screenshots/login.png)
-*Log in with either an email address or a username, plus the "Keep me logged in" session switch.*
-
-![The sign up form](docs/screenshots/signup.png)
-*Sign up: `SignUpForm` subclasses Django's `UserCreationForm`, so the password validators' rules
-are listed inline. The email domain is checked in `clean_email()`.*
-
-![The sign up form in the browser](docs/screenshots/signup-browser.png)
-*The same page in the browser, running on the development server at `127.0.0.1:8001`.*
-
-![The edit profile form](docs/screenshots/profile-edit.png)
-*The private profile editor: name, phone (used for the WhatsApp link), course, year, bio and avatar.*
-
-### Saved listings
-
-![The saved listings page](docs/screenshots/saved-listings.png)
-*`/saved/`: the listings this student has saved, each card carrying the filled marigold star that
-unsaves it again.*
 
 ## Course concepts coverage
 
