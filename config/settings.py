@@ -55,8 +55,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
+    'rest_framework',
+    # The DRF token model. Students who use the API from a script sign in once
+    # at /api/v1/auth/token/ and then send the token instead of a session.
+    'rest_framework.authtoken',
+    'drf_spectacular',
+    # Ships the Swagger UI bundle as ordinary static files of this project, so
+    # the docs page loads no CDN and stays inside the 'self' CSP from B7.
+    'drf_spectacular_sidecar',
     'accounts',
     'products',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -184,6 +193,60 @@ CACHES = {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'campusswap',
     }
+}
+
+
+# REST API (chunk B8)
+# Browsing is open to anyone, like the website; writing needs an account. The
+# per-object "only the seller may edit" rule lives in api.permissions.
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Token first, because DRF builds the WWW-Authenticate header (and so
+        # chooses between 401 and 403) from whichever class is listed first:
+        # with session auth there, a bad token would answer 403 and tell the
+        # client nothing about how to authenticate.
+        'rest_framework.authentication.TokenAuthentication',
+        # Session auth as well, so a logged-in student can try the API from
+        # the docs page with the cookie they already have. DRF enforces CSRF
+        # on unsafe methods for session-authenticated requests.
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ],
+    # JSON only. DRF's browsable API renderer needs inline scripts and styles,
+    # which the CSP forbids; /api/docs/ is the explorer instead.
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    # Same page size as the browse page.
+    'PAGE_SIZE': 12,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'CampusSwap API',
+    'DESCRIPTION': (
+        'Read-only access to categories, and full CRUD over your own '
+        'listings, for the Strathmore student marketplace. Photos are '
+        'returned as URLs; uploading them is done in the web interface.'
+    ),
+    'VERSION': '1.0.0',
+    # The schema endpoint itself is not an interesting part of the schema.
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': '/api/v1',
+    # 'SIDECAR' means "serve Swagger UI from this project's static files".
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+    # Read and write shapes differ (seller and images are read-only), so give
+    # them separate schema components instead of one with optional fields.
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 
 

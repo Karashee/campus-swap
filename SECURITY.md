@@ -106,6 +106,9 @@ class OwnerListingMixin(LoginRequiredMixin):
 | mark sold/reserved/available | the seller | `@require_POST` + `get_object_or_404(..., seller=request.user)` |
 | edit profile | yourself | `get_object()` returns `request.user`; there is no pk in the URL |
 | admin | staff | `django.contrib.admin` |
+| `GET /api/v1/…`, `/api/docs/` | anyone | the same data the public pages show |
+| `POST /api/v1/listings/` | logged in | `IsOwnerOrReadOnly.has_permission` → 401 without credentials |
+| `PUT`/`PATCH`/`DELETE /api/v1/listings/<slug>/` | the seller | `IsOwnerOrReadOnly.has_object_permission` → 403 |
 
 Two further points:
 
@@ -114,13 +117,20 @@ Two further points:
   else>` has no effect.
 * **A disabled account has no public profile.** `profile_detail` filters
   `is_active=True`, so suspending a student also takes their page down.
+* **The API is a second door onto the same data, so it gets its own row in
+  the audit.** The web views answer 404 to a non-owner (the queryset hides the
+  row); the API answers 403, which gives nothing away because listings are
+  public to read anyway, and is far easier to debug. The API also returns a
+  deliberately narrow seller object — username, display name, course, year —
+  so no endpoint hands out a student's email address or phone number to an
+  anonymous caller.
 
 The permission table above is mirrored by tests in `config/tests_security.py`,
 which fail if a later chunk adds a named URL and does not classify it — the
 point being that the audit cannot quietly go stale.
 
 Tests: `config/tests_security.py` (`UrlCoverageTests`, `PublicAccessTests`,
-`LoginRequiredTests`, `OwnershipTests`, `AdminAccessTests`).
+`LoginRequiredTests`, `OwnershipTests`, `ApiAccessTests`, `AdminAccessTests`).
 
 ## 4. CSRF
 
@@ -133,7 +143,14 @@ Django's test client skips CSRF checking by default, so the tests use
 token at each endpoint. Without that flag the protection could be removed and
 the tests would still pass.
 
-Tests: `config/tests_security.py` (`CsrfTests`).
+The API needs the same care, because session authentication makes it reachable
+from a browser with a cookie. DRF's `SessionAuthentication` enforces the CSRF
+token on unsafe methods, so a cookie-authenticated `PATCH` without one is a
+403; a **token**-authenticated one needs no token, because a header is not
+sent automatically by the browser and so cannot be forged cross-site.
+
+Tests: `config/tests_security.py` (`CsrfTests`, and the two CSRF tests in
+`ApiAccessTests`).
 
 ## 5. Upload validation
 
@@ -233,8 +250,30 @@ silently dropped. They are now CSS classes in `static/css/app.css`, and a test
 renders every page and asserts that no `style="` attribute has crept back —
 otherwise a regression would only show up as broken styling in production.
 
+### Keeping the API docs page inside the policy
+
+Swagger UI is a third-party page, and the usual way to serve it — a CDN script
+tag plus an inline `<script>` that boots it — needs both `unsafe-inline` and a
+CDN host in `script-src`. Rather than punch those holes, three choices keep
+`/api/docs/` on `'self'` only:
+
+* **drf-spectacular-sidecar** ships the Swagger UI bundle as static files of
+  this project, so there is no CDN.
+* **`SpectacularSwaggerSplitView`** serves the init script as its own request
+  (`/api/docs/?script=`) instead of an inline block.
+* **`templates/drf_spectacular/swagger_ui.html`** shadows the packaged
+  template to move its three inline CSS rules into `static/css/api-docs.css`.
+
+`api/views.py` then wraps the view in Django 6.0's `csp_override`, which only
+*tightens* the site policy for that one page: the docs page has no inline
+script of ours to nonce and loads no Google Fonts, so both come off. DRF's
+browsable API renderer is switched off for the same reason — it needs inline
+scripts and styles — which is why the API answers JSON only.
+
 Tests: `config/tests_security.py` (`ContentSecurityPolicyTests`,
-`XssEscapingTests`).
+`XssEscapingTests`, and the CSP tests in `ApiAccessTests`), plus
+`api/tests.py` (`ApiDocsTests`) which asserts that the rendered page has no
+inline `<script>` or `<style>` left in it.
 
 ## 8. Other measures
 

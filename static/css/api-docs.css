@@ -1,0 +1,23 @@
+/* The three rules drf-spectacular's packaged swagger_ui.html keeps in an
+   inline <style> block. They live in a file here because the site's CSP has
+   no 'unsafe-inline' in style-src, so an inline block would be dropped and
+   the docs page would render with a scrollbar jump and a white margin.
+
+   This is the one stylesheet in the project besides app.css: it styles a
+   vendored page (Swagger UI), not any part of CampusSwap's own design. */
+
+html {
+  box-sizing: border-box;
+  overflow-y: scroll;
+}
+
+*,
+*::after,
+*::before {
+  box-sizing: inherit;
+}
+
+body {
+  background: #fafafa;
+  margin: 0;
+}

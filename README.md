@@ -19,6 +19,7 @@ by Andrew Karanja (167144).
 - Python 3.12+, Django 6.1
 - SQLite in development (PostgreSQL planned for deployment)
 - Server-rendered Django templates, one hand-written CSS file, no build step
+- Django REST Framework + drf-spectacular for the JSON API and its OpenAPI docs
 - Pillow for image handling, python-dotenv for settings
 
 ## Features
@@ -52,6 +53,17 @@ by Andrew Karanja (167144).
 - Home hero search and category chips feed straight into the browse page
 - A per-visitor "Recently viewed" strip driven by the session
 - View counter that does not count the owner's own visits
+
+**REST API**
+
+- `/api/v1/` — categories (read-only) and listings (search, filter, paginate, retrieve, and
+  create/edit/delete your own), JSON only
+- The same search form drives the API filters and the browse page, and the same
+  `Listing.clean()` enforces the Sell / Trade / Free price rules, so the two interfaces cannot
+  drift apart
+- Session cookie or API token (`POST /api/v1/auth/token/`, then `Authorization: Token <key>`)
+- Interactive Swagger UI at `/api/docs/`, served from the project's own static files so it needs
+  no exception in the Content-Security-Policy
 
 **Admin and demo data**
 
@@ -127,6 +139,50 @@ by Andrew Karanja (167144).
 | Recently viewed listings            | `products/views.py` → `remember_viewed()` and `recently_viewed_listings()` store the last `RECENTLY_VIEWED_LIMIT` (5) listing ids under the `recently_viewed` session key, most recent first, no duplicates, skipping the visitor's own listings; rendered as a strip in `templates/home.html` |
 | Messages framework (session-backed) | `django.contrib.messages` rendered as toasts in `templates/base.html`                                                                                                                                                                                                                          |
 
+### APIs
+
+| Requirement                | Where                                                                                                                                                                      |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Serializers                | `api/serializers.py` → `CategorySerializer`, `ListingSerializer` (nested category, seller and photo URLs for reading; `category_id` for writing), `ListingImageSerializer` |
+| Validation reuse           | `api/serializers.py` → `ListingSerializer.validate()` builds the listing the request would save and calls `Listing.clean()`, the same rules the web form gets for free     |
+| ViewSets and routers       | `api/views.py` → `CategoryViewSet` (read-only), `ListingViewSet`; `api/urls.py` → `DefaultRouter`                                                                          |
+| Search, filter, paginate   | `api/filters.py` → `ListingSearchBackend` hands the query string to `products.forms.ListingSearchForm`; `ListingPagination` is 12 per page, `page_size` up to 50           |
+| Custom permission          | `api/permissions.py` → `IsOwnerOrReadOnly` (anyone reads, only `listing.seller` writes)                                                                                    |
+| Authentication             | `config/settings.py` → `REST_FRAMEWORK`: `TokenAuthentication` then `SessionAuthentication`; `api/views.py` → `ApiTokenView`                                                |
+| OpenAPI documentation      | drf-spectacular: schema at `/api/schema/`, Swagger UI at `/api/docs/`                                                                                                      |
+| Tests                      | `api/tests.py` (endpoint behaviour) and `config/tests_security.py` → `ApiAccessTests` (the permission matrix)                                                               |
+
+#### Endpoints
+
+| Method                   | Path                        | Who                   |
+| ------------------------ | --------------------------- | --------------------- |
+| `GET`                    | `/api/v1/categories/`       | anyone                |
+| `GET`                    | `/api/v1/categories/<slug>/`| anyone                |
+| `GET`                    | `/api/v1/listings/`         | anyone                |
+| `GET`                    | `/api/v1/listings/<slug>/`  | anyone                |
+| `POST`                   | `/api/v1/listings/`         | any signed-in student |
+| `PUT` `PATCH` `DELETE`   | `/api/v1/listings/<slug>/`  | the seller only       |
+| `POST`                   | `/api/v1/auth/token/`       | anyone with a password|
+
+List filters: `q`, `category` (slug or id), `listing_type`, `condition`, `min_price`, `max_price`,
+`sort`, `show_sold`, `page`, `page_size`. Photo uploads are deliberately not in the API — they go
+through the web form, which re-encodes and strips metadata from every file.
+
+```powershell
+# Browse, no account needed
+curl "http://127.0.0.1:8000/api/v1/listings/?q=calculator&max_price=2000"
+
+# Get a token, then post a listing as yourself
+curl -X POST http://127.0.0.1:8000/api/v1/auth/token/ `
+  -H "Content-Type: application/json" `
+  -d '{\"username\": \"wanjiku\", \"password\": \"campus123!\"}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/listings/ `
+  -H "Authorization: Token <key>" -H "Content-Type: application/json" `
+  -d '{\"title\": \"Lab coat\", \"description\": \"Size M.\", \"category_id\": 1,
+       \"condition\": \"GOOD\", \"listing_type\": \"FREE\", \"meetup_spot\": \"Phase 2\"}'
+```
+
 ## Setup (Windows / PowerShell)
 
 ```powershell
@@ -180,11 +236,14 @@ Either username or email works at the login form.
 ## Tests
 
 ```powershell
-python manage.py test          # 49 tests
+python manage.py test          # 189 tests
 python manage.py check
 ```
 
-**49 tests** covering: the email-domain restriction and case-insensitive duplicate emails, login by
+**189 tests** covering: the email-domain restriction and case-insensitive duplicate emails, login by
 email and by username, remember-me session expiry, POST-only logout, login-required views, listing
 validation per type, ownership (404 for non-owners on edit, delete and status changes), the view
-counter skipping the owner, search filtering, and the recently-viewed session behaviour.
+counter skipping the owner, search filtering, the recently-viewed session behaviour, the photo
+formset and upload re-encoding, the site-wide security audit in `config/tests_security.py` (every
+named URL is listed in one of its permission tables, or the suite fails), and the JSON API in
+`api/tests.py`.

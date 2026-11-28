@@ -12,6 +12,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import Client, RequestFactory, TestCase
 from django.urls import get_resolver, reverse
+from rest_framework.authtoken.models import Token
 
 from config.redirects import safe_next_url
 from products.models import Category, Listing, ListingImage
@@ -100,6 +101,25 @@ OWNER_ONLY_URLS = {
     'products:delete': {'slug': None},
 }
 
+#: API endpoints anyone may read (chunk B8). The API is a second door onto the
+#: same data, so it gets its own row in the audit rather than being assumed to
+#: inherit the web pages' checks.
+API_PUBLIC_URLS = {
+    'api:api-root': {},
+    'api:schema': {},
+    'api:docs': {},
+    'api:category-list': {},
+    'api:category-detail': {'slug': 'textbooks'},
+    'api:listing-list': {},
+    'api:listing-detail': {'slug': None},
+}
+
+#: API endpoints that must refuse a write from a client who is not the owner.
+#: The value is the method to try, since there is no page to GET.
+API_OWNER_ONLY_WRITES = {
+    'api:listing-detail': ('patch', {'slug': None}),
+}
+
 #: Named URLs that are intentionally not in any table above, with the reason.
 UNCHECKED_URLS = {
     # POST-only, so it has its own tests rather than a GET check.
@@ -107,6 +127,8 @@ UNCHECKED_URLS = {
     'accounts:logout': 'POST-only, covered by LogoutTests',
     # Reached only through a one-time emailed token.
     'accounts:password_reset_confirm': 'token URL, covered by PasswordResetTests',
+    # POST-only: it swaps a password for an API token.
+    'api:token': 'POST-only, covered by api.tests.ApiAuthenticationTests',
 }
 
 
@@ -135,6 +157,8 @@ class UrlCoverageTests(SecurityTestBase):
             set(PUBLIC_URLS)
             | set(LOGIN_REQUIRED_URLS)
             | set(OWNER_ONLY_URLS)
+            | set(API_PUBLIC_URLS)
+            | set(API_OWNER_ONLY_WRITES)
             | set(UNCHECKED_URLS)
         )
         # The admin registers a long list of its own names; it is tested
@@ -254,6 +278,121 @@ class OwnershipTests(SecurityTestBase):
         self.client.force_login(self.other)
         response = self.client.get(reverse('products:my_listings'))
         self.assertNotContains(response, 'Calculus 8th ed')
+
+
+class ApiAccessTests(SecurityTestBase):
+    """The API half of the audit (chunk B8).
+
+    The endpoint behaviour is tested in ``api/tests.py``; what matters here is
+    that the API does not quietly become a way around the checks the web pages
+    make. Anonymous reads are fine, because the same data is on a public page.
+    Anonymous writes are not, and neither are writes to someone else's row.
+    """
+
+    def test_api_reads_are_public(self):
+        for name, kwargs in API_PUBLIC_URLS.items():
+            kwargs = _fill(kwargs, self.listing.slug)
+            with self.subTest(url=name):
+                response = self.client.get(reverse(name, kwargs=kwargs))
+                self.assertEqual(response.status_code, 200)
+
+    def test_an_anonymous_client_cannot_write_through_the_api(self):
+        payload = {'title': 'Stolen'}
+        cases = {
+            'create': ('post', reverse('api:listing-list')),
+            'replace': ('put', reverse(
+                'api:listing-detail', kwargs={'slug': self.listing.slug}
+            )),
+            'change': ('patch', reverse(
+                'api:listing-detail', kwargs={'slug': self.listing.slug}
+            )),
+            'delete': ('delete', reverse(
+                'api:listing-detail', kwargs={'slug': self.listing.slug}
+            )),
+        }
+        for label, (method, url) in cases.items():
+            with self.subTest(method=label):
+                send = getattr(self.client, method)
+                response = (
+                    send(url) if method == 'delete'
+                    else send(url, payload, 'application/json')
+                )
+                # 401: no credentials at all, and the response says what kind
+                # the API wants.
+                self.assertEqual(response.status_code, 401)
+                self.assertEqual(response['WWW-Authenticate'], 'Token')
+
+        self.listing.refresh_from_db()
+        self.assertEqual(self.listing.title, 'Calculus 8th ed')
+
+    def test_a_logged_in_non_owner_cannot_write_to_someone_else_s_listing(self):
+        self.client.force_login(self.other)
+        for name, (method, kwargs) in API_OWNER_ONLY_WRITES.items():
+            kwargs = _fill(kwargs, self.listing.slug)
+            with self.subTest(url=name):
+                url = reverse(name, kwargs=kwargs)
+                response = getattr(self.client, method)(
+                    url, {'title': 'Stolen'}, 'application/json'
+                )
+                self.assertEqual(response.status_code, 403)
+
+        self.listing.refresh_from_db()
+        self.assertEqual(self.listing.title, 'Calculus 8th ed')
+
+    def test_the_api_does_not_hand_out_contact_details(self):
+        """The web page shows a phone number only to a logged-in non-owner."""
+        self.owner.phone = '+254712345678'
+        self.owner.save(update_fields=['phone'])
+
+        url = reverse('api:listing-detail', kwargs={'slug': self.listing.slug})
+        body = self.client.get(url).content.decode()
+        self.assertNotIn('+254712345678', body)
+        self.assertNotIn('wanjiku@strathmore.edu', body)
+
+    def test_a_session_authenticated_write_still_needs_a_csrf_token(self):
+        """Session auth makes the API reachable from a browser, and so a CSRF
+        target. DRF's SessionAuthentication enforces the token for us; this is
+        the test that says so out loud.
+        """
+        strict = Client(enforce_csrf_checks=True)
+        strict.force_login(self.owner)
+        response = strict.patch(
+            reverse('api:listing-detail', kwargs={'slug': self.listing.slug}),
+            {'title': 'Renamed'},
+            'application/json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.listing.refresh_from_db()
+        self.assertEqual(self.listing.title, 'Calculus 8th ed')
+
+    def test_a_token_authenticated_write_does_not_need_one(self):
+        """The counterpart: a token is not a cookie, so CSRF does not apply."""
+        token = Token.objects.create(user=self.owner)
+        strict = Client(enforce_csrf_checks=True)
+        response = strict.patch(
+            reverse('api:listing-detail', kwargs={'slug': self.listing.slug}),
+            {'title': 'Renamed'},
+            'application/json',
+            headers={'authorization': f'Token {token.key}'},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_the_docs_page_policy_allows_no_inline_code_and_no_third_party(self):
+        """B7's CSP still covers /api/docs/, without being loosened for it."""
+        policy = self.client.get(reverse('api:docs'))['Content-Security-Policy']
+        self.assertIn("default-src 'self'", policy)
+        self.assertIn("script-src 'self'", policy)
+        self.assertIn("style-src 'self'", policy)
+        self.assertNotIn('unsafe-inline', policy)
+        self.assertNotIn('unsafe-eval', policy)
+        self.assertNotIn('http', policy.replace("'self'", ''))
+
+    def test_the_rest_of_the_site_keeps_its_own_policy(self):
+        """The docs page's override must not leak onto other responses."""
+        self.client.get(reverse('api:docs'))
+        policy = self.client.get(reverse('home'))['Content-Security-Policy']
+        self.assertIn('https://fonts.googleapis.com', policy)
+        self.assertIn('nonce-', policy)
 
 
 class AdminAccessTests(SecurityTestBase):

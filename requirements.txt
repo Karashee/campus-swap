@@ -1,3 +1,8 @@
 Django==6.1.1
 pillow==13.0.0
 python-dotenv==1.2.4
+djangorestframework==3.18.3
+drf-spectacular==0.30.0
+# Serves the Swagger UI bundle from our own static files instead of a CDN,
+# which is what keeps /api/docs/ inside the project's Content-Security-Policy.
+drf-spectacular-sidecar==2026.10.1

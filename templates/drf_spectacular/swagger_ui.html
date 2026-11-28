@@ -1,0 +1,32 @@
+{% load static %}{% comment %}
+  Shadows drf_spectacular/templates/drf_spectacular/swagger_ui.html. Our
+  templates/ directory comes before the app directories, so this copy is the
+  one that renders.
+
+  It is the packaged template with one change: the inline <style> block is now
+  static/css/api-docs.css. The site's Content-Security-Policy allows styles
+  only from 'self' (no 'unsafe-inline'), so an inline block would be dropped
+  by the browser.
+
+  The inline <script> the packaged template also has is not here either, but
+  that is not this file's doing: the view is SpectacularSwaggerSplitView,
+  which fills script_url and serves the init script as its own request.
+  Keep the {% if script_url %} branch, or the page will go back to an inline
+  block the CSP refuses.
+{% endcomment %}<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>{{ title|default:"Swagger" }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if favicon_href %}<link rel="icon" href="{{ favicon_href }}">{% endif %}
+    <link rel="stylesheet" href="{{ swagger_ui_css }}">
+    <link rel="stylesheet" href="{% static 'css/api-docs.css' %}">
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="{{ swagger_ui_bundle }}"></script>
+    <script src="{{ swagger_ui_standalone }}"></script>
+    {% if script_url %}<script src="{{ script_url }}"></script>{% endif %}
+  </body>
+</html>
