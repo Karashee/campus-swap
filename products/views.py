@@ -68,41 +68,77 @@ def categories_with_counts():
 
 
 def home(request):
-    """Landing page: hero search plus the latest available listings."""
-    search_form = ListingSearchForm(request.GET or None)
-    listings = search_form.filter(available_listings())
-    searching = bool(request.GET.get('q') or request.GET.get('category'))
+    """Landing page: hero search plus the latest available listings.
 
+    The hero form only collects the query and posts it to the browse page,
+    which is where all the real filtering happens.
+    """
     return render(request, 'home.html', {
-        'search_form': search_form,
-        'latest_listings': listings[:8],
-        'searching': searching,
-        'result_count': listings.count() if searching else None,
+        'search_form': ListingSearchForm(),
+        'latest_listings': available_listings()[:8],
         'categories': categories_with_counts(),
         'recently_viewed': recently_viewed_listings(request),
     })
 
 
-def index(request):
-    """Simple browse page. The full filtered version is chunk B1."""
-    search_form = ListingSearchForm(request.GET or None)
-    listings = search_form.filter(available_listings())
-    return render(request, 'products/index.html', {
-        'search_form': search_form,
-        'listings': listings,
-        'result_count': listings.count(),
-    })
+class ListingListView(ListView):
+    """Browse: search, filter, sort and paginate the public listings.
 
+    The same view serves /browse/ and /c/<slug>/. On a category page the URL
+    fixes the category, so that filter is taken out of the sidebar instead of
+    being offered twice.
+    """
 
-def category_detail(request, slug):
-    """Listings in one category. Reuses the browse template."""
-    category = get_object_or_404(Category, slug=slug)
-    listings = available_listings().filter(category=category)
-    return render(request, 'products/index.html', {
-        'listings': listings,
-        'category': category,
-        'result_count': listings.count(),
-    })
+    template_name = 'products/browse.html'
+    context_object_name = 'listings'
+    paginate_by = 12
+
+    def get(self, request, *args, **kwargs):
+        self.category = (
+            get_object_or_404(Category, slug=kwargs['slug'])
+            if 'slug' in kwargs
+            else None
+        )
+        # Always bound, even with an empty query string: a GET form with no
+        # required fields validates fine, and binding keeps the sidebar
+        # showing whatever the student picked.
+        self.search_form = ListingSearchForm(
+            request.GET, locked_category=self.category
+        )
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        # select_related keeps the card grid at one query instead of one per
+        # listing for the seller and category.
+        queryset = Listing.objects.select_related('seller', 'category')
+        if self.category:
+            queryset = queryset.filter(category=self.category)
+        return self.search_form.filter(queryset)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # Everything except the page number, so pagination links and chips
+        # keep the current search.
+        params = self.request.GET.copy()
+        params.pop('page', None)
+
+        chips = []
+        for chip in self.search_form.active_filters():
+            remaining = params.copy()
+            remaining.pop(chip['param'], None)
+            chips.append({**chip, 'query': remaining.urlencode()})
+
+        page = context.get('page_obj')
+        context['search_form'] = self.search_form
+        context['category'] = self.category
+        context['categories'] = categories_with_counts()
+        context['result_count'] = (
+            page.paginator.count if page else len(context['listings'])
+        )
+        context['active_filters'] = chips
+        context['querystring'] = params.urlencode()
+        return context
 
 
 class ListingDetailView(DetailView):

@@ -266,26 +266,167 @@ class RecentlyViewedSessionTests(ListingTestBase):
         )
 
 
-class SearchTests(ListingTestBase):
-    def setUp(self):
-        self.make_listing(title='Calculus 8th ed')
-        self.make_listing(
-            title='Casio fx-991ES', description='Scientific calculator.'
-        )
-
-    def test_home_search_filters_by_title(self):
-        response = self.client.get(reverse('home'), {'q': 'calculus'})
-        self.assertContains(response, 'Calculus 8th ed')
-        self.assertNotContains(response, 'Casio fx-991ES')
-
-    def test_home_search_also_matches_the_description(self):
-        response = self.client.get(reverse('home'), {'q': 'scientific'})
-        self.assertContains(response, 'Casio fx-991ES')
-
+class HomeTests(ListingTestBase):
     def test_sold_listings_are_not_in_the_public_grid(self):
         self.make_listing(title='Sold hoodie', status=Listing.Status.SOLD)
         response = self.client.get(reverse('home'))
         self.assertNotContains(response, 'Sold hoodie')
+
+    def test_hero_search_submits_to_the_browse_page(self):
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, f'action="{reverse("products:browse")}"')
+
+    def test_category_chips_link_to_the_category_pages(self):
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, self.category.get_absolute_url())
+
+
+class BrowseBase(ListingTestBase):
+    """Three listings covering the types, categories and conditions we filter on."""
+
+    def setUp(self):
+        self.electronics, _ = Category.objects.get_or_create(
+            slug='electronics', defaults={'name': 'Electronics', 'ordering': 2}
+        )
+        self.calculus = self.make_listing(title='Calculus 8th ed', price=1800)
+        self.casio = self.make_listing(
+            title='Casio fx-991ES',
+            description='Scientific calculator.',
+            category=self.electronics,
+            price=900,
+            condition=Listing.Condition.NEW,
+        )
+        self.lamp = self.make_listing(
+            title='Desk lamp',
+            listing_type=Listing.ListingType.FREE,
+            price=None,
+        )
+
+    def browse(self, **params):
+        return self.client.get(reverse('products:browse'), params)
+
+    def titles(self, response):
+        return [listing.title for listing in response.context['listings']]
+
+
+class BrowseTests(BrowseBase):
+    """The /browse/ page: searching, filtering, sorting and paging."""
+
+    def test_search_matches_the_title(self):
+        response = self.browse(q='calculus')
+        self.assertEqual(self.titles(response), ['Calculus 8th ed'])
+
+    def test_search_also_matches_the_description(self):
+        response = self.browse(q='scientific')
+        self.assertEqual(self.titles(response), ['Casio fx-991ES'])
+
+    def test_filter_by_category(self):
+        response = self.browse(category=self.electronics.pk)
+        self.assertEqual(self.titles(response), ['Casio fx-991ES'])
+
+    def test_filter_by_listing_type(self):
+        response = self.browse(listing_type='FREE')
+        self.assertEqual(self.titles(response), ['Desk lamp'])
+
+    def test_filter_by_condition(self):
+        response = self.browse(condition='NEW')
+        self.assertEqual(self.titles(response), ['Casio fx-991ES'])
+
+    def test_filter_by_price_range(self):
+        response = self.browse(min_price='1000', max_price='2000')
+        self.assertEqual(self.titles(response), ['Calculus 8th ed'])
+
+    def test_min_above_max_is_a_form_error_and_does_not_filter(self):
+        response = self.browse(min_price='5000', max_price='100')
+        self.assertFormError(
+            response.context['search_form'], 'min_price',
+            'The lowest price cannot be above the highest.',
+        )
+        self.assertEqual(len(self.titles(response)), 3)
+
+    def test_sort_by_price_ascending_puts_free_items_last(self):
+        response = self.browse(sort='price_asc')
+        self.assertEqual(
+            self.titles(response),
+            ['Casio fx-991ES', 'Calculus 8th ed', 'Desk lamp'],
+        )
+
+    def test_sort_by_price_descending(self):
+        response = self.browse(sort='price_desc')
+        self.assertEqual(
+            self.titles(response)[:2], ['Calculus 8th ed', 'Casio fx-991ES']
+        )
+
+    def test_default_sort_is_newest_first(self):
+        response = self.browse()
+        self.assertEqual(self.titles(response)[0], 'Desk lamp')
+
+    def test_sold_listings_are_hidden_by_default(self):
+        self.make_listing(title='Sold hoodie', status=Listing.Status.SOLD)
+        self.assertNotIn('Sold hoodie', self.titles(self.browse()))
+
+    def test_show_sold_includes_them(self):
+        self.make_listing(title='Sold hoodie', status=Listing.Status.SOLD)
+        self.assertIn('Sold hoodie', self.titles(self.browse(show_sold='on')))
+
+    def test_reserved_listings_still_show(self):
+        self.make_listing(title='Held kettle', status=Listing.Status.RESERVED)
+        self.assertIn('Held kettle', self.titles(self.browse()))
+
+    def test_filters_combine(self):
+        response = self.browse(q='casio', category=self.electronics.pk, condition='NEW')
+        self.assertEqual(self.titles(response), ['Casio fx-991ES'])
+
+    def test_active_filter_chips_drop_only_their_own_parameter(self):
+        response = self.browse(q='casio', listing_type='SELL')
+        chips = {chip['param']: chip['query'] for chip in response.context['active_filters']}
+        self.assertEqual(sorted(chips), ['listing_type', 'q'])
+        self.assertIn('listing_type=SELL', chips['q'])
+        self.assertNotIn('q=casio', chips['q'])
+
+    def test_pagination_is_twelve_per_page_and_keeps_the_query(self):
+        for index in range(15):
+            self.make_listing(title=f'Extra notebook {index}')
+
+        response = self.browse(q='notebook')
+        self.assertEqual(len(self.titles(response)), 12)
+        self.assertEqual(response.context['result_count'], 15)
+        # The pagination links carry the search along.
+        self.assertEqual(response.context['querystring'], 'q=notebook')
+        self.assertContains(response, 'page=2&amp;q=notebook')
+
+        page_two = self.browse(q='notebook', page='2')
+        self.assertEqual(len(self.titles(page_two)), 3)
+
+    def test_result_count_is_the_whole_result_set_not_the_page(self):
+        for index in range(15):
+            self.make_listing(title=f'Extra notebook {index}')
+        response = self.browse()
+        self.assertEqual(response.context['result_count'], 18)
+        self.assertEqual(len(self.titles(response)), 12)
+
+
+class CategoryPageTests(BrowseBase):
+    """/c/<slug>/ is the same view with the category fixed by the URL."""
+
+    def test_shows_only_that_category(self):
+        response = self.client.get(self.electronics.get_absolute_url())
+        self.assertEqual(self.titles(response), ['Casio fx-991ES'])
+        self.assertEqual(response.context['category'], self.electronics)
+
+    def test_the_category_filter_is_not_offered_twice(self):
+        response = self.client.get(self.electronics.get_absolute_url())
+        self.assertNotIn('category', response.context['search_form'].fields)
+
+    def test_other_filters_still_apply(self):
+        response = self.client.get(
+            self.category.get_absolute_url(), {'listing_type': 'FREE'}
+        )
+        self.assertEqual(self.titles(response), ['Desk lamp'])
+
+    def test_unknown_category_is_a_404(self):
+        response = self.client.get('/c/no-such-category/')
+        self.assertEqual(response.status_code, 404)
 
 
 class MyListingsTests(ListingTestBase):

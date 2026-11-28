@@ -226,6 +226,41 @@ img { max-width: 100%; display: block; }
   padding: .3rem .8rem; font-size: .85rem; text-decoration: none;
 }
 .chip:hover { border-color: var(--ink); }
+.chip-active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.chip-remove { background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.chip-remove:hover { border-color: var(--ink); }
+
+/* Browse page: filter column plus results */
+.browse {
+  display: grid; gap: 1.5rem; align-items: start;
+  grid-template-columns: 16rem minmax(0, 1fr);
+}
+.browse-categories { margin-bottom: 1.25rem; }
+.filters { position: sticky; top: 1rem; }
+.filters-head { display: none; align-items: baseline; justify-content: space-between; }
+.filters-head h2 { margin: 0; }
+.filters .field:last-of-type { margin-bottom: .75rem; }
+.filters-actions { display: flex; gap: .5rem; align-items: center; }
+.filter-toggle { display: none; margin-bottom: 1rem; }
+.active-filters { margin-bottom: 1.25rem; align-items: center; }
+.pagination { display: flex; gap: .75rem; align-items: center; justify-content: center; margin-top: 2rem; }
+
+@media (max-width: 767px) {
+  .browse { grid-template-columns: 1fr; }
+  .filter-toggle { display: inline-block; }
+  /* Bottom sheet: off-screen until the Filters button opens it. */
+  .filters {
+    position: fixed; inset: auto 0 0 0; z-index: 45;
+    max-height: 85vh; overflow-y: auto;
+    border-radius: var(--radius-card) var(--radius-card) 0 0;
+    box-shadow: 0 -8px 24px rgba(20, 23, 31, .18);
+    transform: translateY(101%); transition: transform .2s ease;
+    /* Hidden rather than just off-screen, so it stays out of the tab order. */
+    visibility: hidden;
+  }
+  .filters.open { transform: translateY(0); visibility: visible; }
+  .filters-head { display: flex; }
+}
 
 /* Segmented radio buttons.
    Django renders RadioSelect as <div class="segmented"> with one <div> per

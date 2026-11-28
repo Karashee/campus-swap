@@ -31,7 +31,7 @@
     {% if object %}
     <a class="btn btn-ghost" href="{{ object.get_absolute_url }}">Cancel</a>
     {% else %}
-    <a class="btn btn-ghost" href="{% url 'products:index' %}">Cancel</a>
+    <a class="btn btn-ghost" href="{% url 'products:browse' %}">Cancel</a>
     {% endif %}
   </form>
 </section>

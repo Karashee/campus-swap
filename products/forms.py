@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import F, Q
 
 from config.forms import FormStyleMixin
 
@@ -67,8 +68,21 @@ class ListingForm(FormStyleMixin, forms.ModelForm):
         return image
 
 
-class ListingSearchForm(forms.Form):
-    """GET-based search. Plain Form: it filters, it never saves anything."""
+class ListingSearchForm(FormStyleMixin, forms.Form):
+    """GET-based search, filter and sort. Plain Form: it never saves anything.
+
+    One form drives the home hero search, the browse page sidebar and the
+    category pages, so the query rules live in exactly one place.
+    """
+
+    NEWEST = 'newest'
+    PRICE_ASC = 'price_asc'
+    PRICE_DESC = 'price_desc'
+    SORT_CHOICES = [
+        (NEWEST, 'Newest first'),
+        (PRICE_ASC, 'Price: low to high'),
+        (PRICE_DESC, 'Price: high to low'),
+    ]
 
     q = forms.CharField(
         required=False,
@@ -88,30 +102,131 @@ class ListingSearchForm(forms.Form):
         required=False,
         label='Type',
     )
+    condition = forms.ChoiceField(
+        choices=[('', 'Any condition')] + Listing.Condition.choices,
+        required=False,
+    )
+    min_price = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label='Min price',
+        help_text='Price filters only match items that are for sale.',
+        widget=forms.NumberInput(attrs={'placeholder': 'KSh 0', 'min': '0', 'step': '50'}),
+    )
+    max_price = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=10,
+        decimal_places=2,
+        label='Max price',
+        widget=forms.NumberInput(attrs={'placeholder': 'Any', 'min': '0', 'step': '50'}),
+    )
+    sort = forms.ChoiceField(choices=SORT_CHOICES, required=False, label='Sort by')
+    show_sold = forms.BooleanField(required=False, label='Include sold items')
 
-    def __init__(self, *args, **kwargs):
+    #: Fields that are filters rather than presentation, in chip order.
+    FILTER_FIELDS = (
+        'q', 'category', 'listing_type', 'condition',
+        'min_price', 'max_price', 'show_sold',
+    )
+
+    def __init__(self, *args, locked_category=None, **kwargs):
         super().__init__(*args, **kwargs)
+        #: Set on the /c/<slug>/ pages, where the URL already fixes the category.
+        self.locked_category = locked_category
+        if locked_category is not None:
+            del self.fields['category']
         for field in self.fields.values():
             # A GET form should not mark anything required in the markup.
             field.widget.attrs.pop('required', None)
 
-    def filter(self, queryset):
-        """Apply whatever the student actually filled in."""
-        from django.db.models import Q
-
-        if not self.is_valid():
-            return queryset
-
-        q = self.cleaned_data.get('q')
-        category = self.cleaned_data.get('category')
-        listing_type = self.cleaned_data.get('listing_type')
-
-        if q:
-            queryset = queryset.filter(
-                Q(title__icontains=q) | Q(description__icontains=q)
+    def clean(self):
+        cleaned = super().clean()
+        low = cleaned.get('min_price')
+        high = cleaned.get('max_price')
+        if low is not None and high is not None and low > high:
+            self.add_error(
+                'min_price', 'The lowest price cannot be above the highest.'
             )
-        if category:
-            queryset = queryset.filter(category=category)
-        if listing_type:
-            queryset = queryset.filter(listing_type=listing_type)
-        return queryset
+        return cleaned
+
+    def filter(self, queryset):
+        """Apply whatever the student actually filled in, then sort."""
+        if not self.is_valid():
+            # Contradictory input (min above max, a bad number). Fall back to
+            # the default view of the data; the form renders its own errors.
+            return queryset.exclude(status=Listing.Status.SOLD)
+
+        data = self.cleaned_data
+
+        if data.get('q'):
+            queryset = queryset.filter(
+                Q(title__icontains=data['q']) | Q(description__icontains=data['q'])
+            )
+        if data.get('category'):
+            queryset = queryset.filter(category=data['category'])
+        if data.get('listing_type'):
+            queryset = queryset.filter(listing_type=data['listing_type'])
+        if data.get('condition'):
+            queryset = queryset.filter(condition=data['condition'])
+
+        # A price range is only meaningful for priced items, so trade and free
+        # listings (price IS NULL) drop out of the results once one is set.
+        if data.get('min_price') is not None:
+            queryset = queryset.filter(price__gte=data['min_price'])
+        if data.get('max_price') is not None:
+            queryset = queryset.filter(price__lte=data['max_price'])
+
+        if not data.get('show_sold'):
+            queryset = queryset.exclude(status=Listing.Status.SOLD)
+
+        return queryset.order_by(*self.ordering())
+
+    def ordering(self):
+        """The order_by arguments for the chosen sort.
+
+        Free and trade listings have no price, so they sit at the end of a
+        price sort either way rather than clumping at the cheap end.
+        """
+        sort = self.cleaned_data.get('sort') if self.is_valid() else None
+        if sort == self.PRICE_ASC:
+            return (F('price').asc(nulls_last=True), '-created_at')
+        if sort == self.PRICE_DESC:
+            return (F('price').desc(nulls_last=True), '-created_at')
+        return ('-created_at',)
+
+    def active_filters(self):
+        """The filters currently in force, for the removable chips.
+
+        Each entry names the GET parameter to drop and the label to show.
+        """
+        if not self.is_valid():
+            return []
+
+        chips = []
+        for name in self.FILTER_FIELDS:
+            if name not in self.fields:
+                continue
+            value = self.cleaned_data.get(name)
+            if value in (None, '', False):
+                continue
+
+            if name == 'q':
+                label = f'“{value}”'
+            elif name == 'category':
+                label = str(value)
+            elif name == 'listing_type':
+                label = Listing.ListingType(value).label
+            elif name == 'condition':
+                label = Listing.Condition(value).label
+            elif name == 'min_price':
+                label = f'From KSh {value:,.0f}'
+            elif name == 'max_price':
+                label = f'Up to KSh {value:,.0f}'
+            else:  # show_sold
+                label = 'Including sold'
+
+            chips.append({'param': name, 'label': label})
+        return chips

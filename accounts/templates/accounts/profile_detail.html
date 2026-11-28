@@ -42,7 +42,7 @@
       {% else %}{{ profile_user.display_name }} has nothing up right now.{% endif %}
     </p>
     {% if user == profile_user %}
-    <a class="btn" href="{% url 'products:index' %}">Post a listing</a>
+    <a class="btn" href="{% url 'products:create' %}">Post a listing</a>
     {% endif %}
   </div>
   {% endif %}

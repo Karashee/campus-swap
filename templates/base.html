@@ -16,7 +16,7 @@
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
       <div class="nav-links" id="nav-links">
         <a href="{% url 'home' %}">Home</a>
-        <a href="{% url 'products:index' %}">Browse</a>
+        <a href="{% url 'products:browse' %}">Browse</a>
         {% if user.is_authenticated %}
         <a class="btn btn-accent" href="{% url 'products:create' %}">Sell an item</a>
         <div class="user-menu">

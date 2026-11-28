@@ -7,7 +7,8 @@
   <p>Textbooks, electronics, stationery and dorm essentials from students on campus. Sell what you
     no longer need, trade it, or give it away free.</p>
 
-  <form class="search" method="get" action="{% url 'home' %}" role="search">
+  {# The hero only collects a query; /browse/ does the filtering. #}
+  <form class="search" method="get" action="{% url 'products:browse' %}" role="search">
     <label class="sr-only" for="{{ search_form.q.id_for_label }}">{{ search_form.q.label }}</label>
     {{ search_form.q }}
     <label class="sr-only" for="{{ search_form.category.id_for_label }}">{{ search_form.category.label }}</label>
@@ -17,7 +18,7 @@
 
   <div class="chips">
     {% for category in categories %}
-    <a class="chip" href="{% url 'home' %}?category={{ category.pk }}">
+    <a class="chip" href="{{ category.get_absolute_url }}">
       {{ category.name }} <span class="help">{{ category.listing_count }}</span>
     </a>
     {% endfor %}
@@ -26,15 +27,9 @@
 
 <section class="section">
   <div class="section-head">
-    <h2>{% if searching %}Search results{% else %}Latest listings{% endif %}</h2>
-    {% if searching %}
-    <a class="btn btn-ghost" href="{% url 'home' %}">Clear search</a>
-    {% endif %}
+    <h2>Latest listings</h2>
+    <a class="btn btn-ghost" href="{% url 'products:browse' %}">Browse all &rarr;</a>
   </div>
-
-  {% if searching %}
-  <p class="help">{{ result_count }} listing{{ result_count|pluralize }} found.</p>
-  {% endif %}
 
   {% if latest_listings %}
   <div class="grid">
@@ -42,12 +37,8 @@
   </div>
   {% else %}
   <div class="empty">
-    <p>{% if searching %}Nothing matched that search.{% else %}No listings yet.{% endif %}</p>
-    {% if searching %}
-    <a class="btn" href="{% url 'home' %}">Clear search</a>
-    {% else %}
+    <p>No listings yet.</p>
     <a class="btn" href="{% url 'products:create' %}">Post the first one</a>
-    {% endif %}
   </div>
   {% endif %}
 </section>

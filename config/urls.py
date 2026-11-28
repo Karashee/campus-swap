@@ -8,7 +8,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', product_views.home, name='home'),
     path('accounts/', include('accounts.urls')),
-    path('products/', include('products.urls')),
+    # Mounted at the root so the public pages read as /browse/, /c/<slug>/
+    # and /listings/<slug>/.
+    path('', include('products.urls')),
 ]
 
 # Serve user-uploaded media with the dev server. Never used in production.

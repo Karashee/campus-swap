@@ -41,7 +41,12 @@ by Andrew Karanja (167144).
   logged-in students
 - Edit, delete and mark a listing Available / Reserved / Sold — owner only
 - "My listings" with status tabs and counts
-- Home page search across title and description, plus category chips with live counts
+- `/browse/` — search across title and description, filter by category, type, condition and price
+  range, sort by newest or price, 12 per page with the filters kept across pages, removable
+  active-filter chips, and a filter sidebar that becomes a bottom sheet on mobile
+- Category pages at `/c/<slug>/` reuse the same view, with the category fixed by the URL
+- Sold items are hidden by default, with an "Include sold items" toggle
+- Home hero search and category chips feed straight into the browse page
 - A per-visitor "Recently viewed" strip driven by the session
 - View counter that does not count the owner's own visits
 
@@ -81,7 +86,7 @@ by Andrew Karanja (167144).
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ModelForm`                        | `products/forms.py` → `ListingForm`; `accounts/forms.py` → `ProfileForm`                                                                                                                  |
 | `ModelForm` subclassing a built-in | `accounts/forms.py` → `SignUpForm(UserCreationForm)`                                                                                                                                      |
-| Plain `forms.Form`                 | `products/forms.py` → `ListingSearchForm` (GET search, saves nothing; has a `filter(queryset)` method using `Q` objects)                                                                  |
+| Plain `forms.Form`                 | `products/forms.py` → `ListingSearchForm` (GET search, saves nothing; `filter(queryset)` applies `Q` objects, range filters and sorting, `clean()` checks min ≤ max, `active_filters()` drives the chips) |
 | Field-level custom validation      | `accounts/forms.py` → `SignUpForm.clean_email()` (lowercases, case-insensitive uniqueness, domain restriction)                                                                            |
 | Cross-field validation             | `products/models.py` → `Listing.clean()`, surfaced on the `price` / `trade_for` inputs by `ListingForm`; `products/forms.py` → `ListingForm.clean()` mirrors the "free has no price" rule |
 | File-upload validation             | `products/forms.py` → `ListingForm.clean_image()` (max 5 MB, jpg/png/webp); `accounts/forms.py` → `ProfileForm.clean_avatar()` (max 2 MB)                                                 |
