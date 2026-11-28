@@ -95,19 +95,63 @@ their own listing page doubles as a record of what moved.
   redirects, uploads identified by content rather than file extension, and a Content-Security-Policy
   with per-response nonces instead of `unsafe-inline`
 
+## Screenshots
+
+The landing page is the image at the top of this README. The rest of the walk-through, in the
+order a student meets it:
+
+### Posting and viewing an item
+
+![The Sell an item form](docs/screenshots/sell-form.png)
+*Sell an item: title, category, the segmented Sell / Trade / Free and condition buttons, price and
+meet-up spot. The avatar menu is open on the right.*
+
+![The photo formset at the bottom of the Sell an item form](docs/screenshots/sell-form-photos.png)
+*The bottom of the same form: "what do you want in exchange" for a trade listing, and the photo
+formset — up to five slots, the first one becoming the cover.*
+
+![A listing detail page](docs/screenshots/listing-detail.png)
+*A listing detail page: the uploaded photo, the Trade tag and badges, the facts list, the owner
+panel with Edit / Delete / Mark reserved / Mark sold, and the seller card.*
+
+![A trade listing with a photo gallery](docs/screenshots/listing-detail-owner.png)
+*Another listing, this one seeded by `seed_demo`: four generated placeholder photos with
+thumbnails and arrow-key navigation, and the owner panel showing views and saves.*
+
+### Accounts
+
+![The log in page](docs/screenshots/login.png)
+*Log in with either an email address or a username, plus the "Keep me logged in" session switch.*
+
+![The sign up form](docs/screenshots/signup.png)
+*Sign up: `SignUpForm` subclasses Django's `UserCreationForm`, so the password validators' rules
+are listed inline. The email domain is checked in `clean_email()`.*
+
+![The sign up form in the browser](docs/screenshots/signup-browser.png)
+*The same page in the browser, running on the development server at `127.0.0.1:8001`.*
+
+![The edit profile form](docs/screenshots/profile-edit.png)
+*The private profile editor: name, phone (used for the WhatsApp link), course, year, bio and avatar.*
+
+### Saved listings
+
+![The saved listings page](docs/screenshots/saved-listings.png)
+*`/saved/`: the listings this student has saved, each card carrying the filled marigold star that
+unsaves it again.*
+
 ## Course concepts coverage
 
-| Concept | Where it is in this project |
-| --- | --- |
-| **HTML / CSS** | `templates/base.html` (nav, toast region, footer), the page templates in `templates/` and `<app>/templates/<app>/`, shared partials in `templates/includes/` (`form_field.html`, `listing_card.html`, `save_button.html`, `no_photo.html`); one hand-written stylesheet, `static/css/app.css` — CSS variables for the design tokens, CSS grid for the listing grid (`repeat(auto-fill, minmax(240px, 1fr))`), a mobile hamburger nav and a bottom-sheet filter panel under 768px, `prefers-reduced-motion` respected. `static/css/admin-extras.css` does the same job for the admin thumbnails. |
+| Concept                                                | Where it is in this project                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **HTML / CSS**                                         | `templates/base.html` (nav, toast region, footer), the page templates in `templates/` and `<app>/templates/<app>/`, shared partials in `templates/includes/` (`form_field.html`, `listing_card.html`, `save_button.html`, `no_photo.html`); one hand-written stylesheet, `static/css/app.css` — CSS variables for the design tokens, CSS grid for the listing grid (`repeat(auto-fill, minmax(240px, 1fr))`), a mobile hamburger nav and a bottom-sheet filter panel under 768px, `prefers-reduced-motion` respected. `static/css/admin-extras.css` does the same job for the admin thumbnails.                                                                                                                 |
 | **Django (project structure, views, URLs, templates)** | `config/` holds settings, the root URLconf and shared helpers (`config/forms.py`, `config/redirects.py`); apps are `accounts`, `products` and `api`. Class-based views for CRUD in `products/views.py` (`ListingListView`, `ListingDetailView`, `ListingCreateView`, `ListingUpdateView`, `ListingDeleteView`, `MyListingsView`, `SavedListingsView`) and function views for the small POST-only actions (`mark_status`, `toggle_save`). Namespaced URLs (`products:`, `accounts:`, `api:`) in `products/urls.py`, `accounts/urls.py`, `api/urls.py`; template inheritance from `templates/base.html`; a custom context processor in `products/context_processors.py`; `django.contrib.humanize` for the dates. |
-| **Forms (incl. formsets)** | `products/forms.py` → `ListingForm` (`ModelForm`), `ListingSearchForm` (plain `forms.Form` driving GET search, filtering and sorting), `ListingImageForm` + `BaseListingImageFormSet` + `listing_image_formset_class()` — an **inline formset** built with `inlineformset_factory(..., can_order=True, can_delete=True, max_num=5, validate_max=True)`, saved by `PhotoFormsetMixin` in `products/views.py`. `accounts/forms.py` → `SignUpForm(UserCreationForm)`, `LoginForm(AuthenticationForm)`, `ProfileForm`, with field-level validation in `clean_email()` and `clean_avatar()`. `config/forms.py` → `FormStyleMixin` styles every widget; `templates/includes/form_field.html` renders every field. |
-| **Database / models** | `accounts/models.py` → `User(AbstractUser)` with `AUTH_USER_MODEL = "accounts.User"`. `products/models.py` → `Category`, `Listing` (`TextChoices` for condition/type/status, `DecimalField` price, slug built in `save()`, `Meta.ordering` and two `models.Index` entries), `ListingImage` (one-to-many gallery), `SavedListing` (the user ↔ listing join table, with a `UniqueConstraint` on the pair). Migrations in `products/migrations/`, including the data migration `0002_seed_categories.py` and the gallery move in `0004_move_cover_image_to_gallery.py`. Management command: `products/management/commands/seed_demo.py`. |
-| **CRUD** | Create: `ListingCreateView` (`/listings/new/`). Read: `ListingListView` (`/browse/`, `/c/<slug>/`), `ListingDetailView` (`/listings/<slug>/`), `MyListingsView`, `SavedListingsView`. Update: `ListingUpdateView` (`/listings/<slug>/edit/`) and `mark_status` for the Available/Reserved/Sold switch. Delete: `ListingDeleteView` (`/listings/<slug>/delete/`). `toggle_save` creates and deletes `SavedListing` rows. The same four operations over JSON in `api/views.py` → `ListingViewSet`. |
-| **Authentication** | `accounts/views.py` → `signup()`, `CampusLoginView`, `ProfileUpdateView`; `accounts/backends.py` → `EmailOrUsernameBackend` (log in with email **or** username); Django's `LogoutView`, `PasswordChangeView` and the four password-reset views wired in `accounts/urls.py`; `LoginRequiredMixin` on every private view; ownership in `products/views.py` → `OwnerListingMixin.get_queryset()` (filtered by `seller=request.user`, so a non-owner gets a 404). |
-| **Sessions** | `SessionMiddleware` with database-backed sessions (`config/settings.py`); `LoginForm.remember_me` + `CampusLoginView.form_valid()` calling `request.session.set_expiry(0)` or `set_expiry(None)` against `SESSION_COOKIE_AGE`; the "recently viewed" strip in `products/views.py` → `remember_viewed()` / `recently_viewed_listings()` storing listing ids under the `recently_viewed` session key; the messages framework (session-backed) rendered as toasts in `templates/base.html`. |
-| **Security** | `config/tests_security.py` is the audit written down as assertions — every named URL must appear in one of its permission tables. `config/redirects.py` → `safe_next_url()` for `?next=`; `accounts/ratelimit.py` → cache-based login throttle; `products/imaging.py` → `process_upload()` identifies uploads with Pillow rather than by extension and strips EXIF; `SECURE_CSP` in `config/settings.py` plus `{% csp_nonce_attr %}` in the templates; `SECURITY.md` for the reasoning, including why the HTTPS-only settings are left out of a project that is submitted as a repository. |
-| **APIs** | `api/serializers.py` (`CategorySerializer`, `ListingSerializer` re-running `Listing.clean()` in `validate()`, `SellerSerializer` that deliberately omits email and phone), `api/views.py` (`CategoryViewSet`, `ListingViewSet`, `ApiTokenView`, the CSP-tightened `docs_view`), `api/permissions.py` → `IsOwnerOrReadOnly`, `api/filters.py` → `ListingSearchBackend` reusing `ListingSearchForm`, `api/urls.py` → `DefaultRouter`; OpenAPI schema at `/api/schema/` and Swagger UI at `/api/docs/`. |
+| **Forms (incl. formsets)**                             | `products/forms.py` → `ListingForm` (`ModelForm`), `ListingSearchForm` (plain `forms.Form` driving GET search, filtering and sorting), `ListingImageForm` + `BaseListingImageFormSet` + `listing_image_formset_class()` — an **inline formset** built with `inlineformset_factory(..., can_order=True, can_delete=True, max_num=5, validate_max=True)`, saved by `PhotoFormsetMixin` in `products/views.py`. `accounts/forms.py` → `SignUpForm(UserCreationForm)`, `LoginForm(AuthenticationForm)`, `ProfileForm`, with field-level validation in `clean_email()` and `clean_avatar()`. `config/forms.py` → `FormStyleMixin` styles every widget; `templates/includes/form_field.html` renders every field.     |
+| **Database / models**                                  | `accounts/models.py` → `User(AbstractUser)` with `AUTH_USER_MODEL = "accounts.User"`. `products/models.py` → `Category`, `Listing` (`TextChoices` for condition/type/status, `DecimalField` price, slug built in `save()`, `Meta.ordering` and two `models.Index` entries), `ListingImage` (one-to-many gallery), `SavedListing` (the user ↔ listing join table, with a `UniqueConstraint` on the pair). Migrations in `products/migrations/`, including the data migration `0002_seed_categories.py` and the gallery move in `0004_move_cover_image_to_gallery.py`. Management command: `products/management/commands/seed_demo.py`.                                                                           |
+| **CRUD**                                               | Create: `ListingCreateView` (`/listings/new/`). Read: `ListingListView` (`/browse/`, `/c/<slug>/`), `ListingDetailView` (`/listings/<slug>/`), `MyListingsView`, `SavedListingsView`. Update: `ListingUpdateView` (`/listings/<slug>/edit/`) and `mark_status` for the Available/Reserved/Sold switch. Delete: `ListingDeleteView` (`/listings/<slug>/delete/`). `toggle_save` creates and deletes `SavedListing` rows. The same four operations over JSON in `api/views.py` → `ListingViewSet`.                                                                                                                                                                                                                |
+| **Authentication**                                     | `accounts/views.py` → `signup()`, `CampusLoginView`, `ProfileUpdateView`; `accounts/backends.py` → `EmailOrUsernameBackend` (log in with email **or** username); Django's `LogoutView`, `PasswordChangeView` and the four password-reset views wired in `accounts/urls.py`; `LoginRequiredMixin` on every private view; ownership in `products/views.py` → `OwnerListingMixin.get_queryset()` (filtered by `seller=request.user`, so a non-owner gets a 404).                                                                                                                                                                                                                                                   |
+| **Sessions**                                           | `SessionMiddleware` with database-backed sessions (`config/settings.py`); `LoginForm.remember_me` + `CampusLoginView.form_valid()` calling `request.session.set_expiry(0)` or `set_expiry(None)` against `SESSION_COOKIE_AGE`; the "recently viewed" strip in `products/views.py` → `remember_viewed()` / `recently_viewed_listings()` storing listing ids under the `recently_viewed` session key; the messages framework (session-backed) rendered as toasts in `templates/base.html`.                                                                                                                                                                                                                        |
+| **Security**                                           | `config/tests_security.py` is the audit written down as assertions — every named URL must appear in one of its permission tables. `config/redirects.py` → `safe_next_url()` for `?next=`; `accounts/ratelimit.py` → cache-based login throttle; `products/imaging.py` → `process_upload()` identifies uploads with Pillow rather than by extension and strips EXIF; `SECURE_CSP` in `config/settings.py` plus `{% csp_nonce_attr %}` in the templates; `SECURITY.md` for the reasoning, including why the HTTPS-only settings are left out of a project that is submitted as a repository.                                                                                                                      |
+| **APIs**                                               | `api/serializers.py` (`CategorySerializer`, `ListingSerializer` re-running `Listing.clean()` in `validate()`, `SellerSerializer` that deliberately omits email and phone), `api/views.py` (`CategoryViewSet`, `ListingViewSet`, `ApiTokenView`, the CSP-tightened `docs_view`), `api/permissions.py` → `IsOwnerOrReadOnly`, `api/filters.py` → `ListingSearchBackend` reusing `ListingSearchForm`, `api/urls.py` → `DefaultRouter`; OpenAPI schema at `/api/schema/` and Swagger UI at `/api/docs/`.                                                                                                                                                                                                            |
 
 ### Data model
 
@@ -210,13 +254,13 @@ python manage.py createsuperuser
 python manage.py runserver
 ```
 
-| Page | URL |
-| --- | --- |
-| The site | <http://127.0.0.1:8000/> |
-| Admin | <http://127.0.0.1:8000/admin/> |
-| API root | <http://127.0.0.1:8000/api/v1/> |
+| Page                               | URL                                   |
+| ---------------------------------- | ------------------------------------- |
+| The site                           | <http://127.0.0.1:8000/>              |
+| Admin                              | <http://127.0.0.1:8000/admin/>        |
+| API root                           | <http://127.0.0.1:8000/api/v1/>       |
 | **API documentation (Swagger UI)** | **<http://127.0.0.1:8000/api/docs/>** |
-| OpenAPI schema | <http://127.0.0.1:8000/api/schema/> |
+| OpenAPI schema                     | <http://127.0.0.1:8000/api/schema/>   |
 
 On macOS or Linux the only differences are `source .venv/bin/activate` and `cp .env.example .env`.
 
@@ -224,14 +268,14 @@ On macOS or Linux the only differences are `source .venv/bin/activate` and `cp .
 
 Set these in `.env` (see `.env.example`):
 
-| Variable | Purpose |
-| --- | --- |
-| `SECRET_KEY` | Django secret key. Generate your own; never reuse one from a repo. |
-| `DEBUG` | `True` in development, `False` in production. |
-| `ALLOWED_HOSTS` | Comma-separated host names, e.g. `127.0.0.1,localhost`. |
-| `ALLOWED_SIGNUP_EMAIL_DOMAINS` | Comma-separated domains allowed to sign up. Empty means any domain. |
-| `LOGIN_RATELIMIT_ATTEMPTS` | Failed logins allowed per username and per IP before a lockout (default 5). |
-| `LOGIN_RATELIMIT_WINDOW` | How long that count and the lockout last, in seconds (default 900). |
+| Variable                       | Purpose                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------- |
+| `SECRET_KEY`                   | Django secret key. Generate your own; never reuse one from a repo.          |
+| `DEBUG`                        | `True` in development, `False` in production.                               |
+| `ALLOWED_HOSTS`                | Comma-separated host names, e.g. `127.0.0.1,localhost`.                     |
+| `ALLOWED_SIGNUP_EMAIL_DOMAINS` | Comma-separated domains allowed to sign up. Empty means any domain.         |
+| `LOGIN_RATELIMIT_ATTEMPTS`     | Failed logins allowed per username and per IP before a lockout (default 5). |
+| `LOGIN_RATELIMIT_WINDOW`       | How long that count and the lockout last, in seconds (default 900).         |
 
 `.env`, `db.sqlite3` and `/media/` are gitignored.
 
@@ -240,10 +284,10 @@ Set these in `.env` (see `.env.example`):
 `python manage.py seed_demo` creates two students and six listings across all three listing types.
 Pass `--reset` to clear and recreate them.
 
-| Username | Email | Password |
-| --- | --- | --- |
+| Username  | Email                           | Password     |
+| --------- | ------------------------------- | ------------ |
 | `wanjiku` | `wanjiku.mwangi@strathmore.edu` | `campus123!` |
-| `brian` | `brian.otieno@strathmore.edu` | `campus123!` |
+| `brian`   | `brian.otieno@strathmore.edu`   | `campus123!` |
 
 Either the username or the email works at the login form. The demo photos are generated by Pillow,
 so they are coloured cards with the item's name on them rather than real photographs.
@@ -276,94 +320,94 @@ python manage.py test          # 214 tests
 `ModelForm` does that in its `_post_clean()` step, the admin does it, `seed_demo` does it
 explicitly, and `ListingSerializer.validate()` calls `Listing.clean()` by hand so the API gets the
 same rules. Code that calls `Listing.objects.create(...)` straight from the shell bypasses all of
-it, which is why the rules are *also* expressed as database-level field options (`null`, `blank`,
+it, which is why the rules are _also_ expressed as database-level field options (`null`, `blank`,
 `MinValueValidator`) and a `UniqueConstraint`.
 
 ## Detail by topic
 
 ### Models
 
-| Requirement | Where |
-| --- | --- |
-| Custom user model | `accounts/models.py` → `User(AbstractUser)`, with `AUTH_USER_MODEL = "accounts.User"` in `config/settings.py` |
-| Field types and options | `accounts/models.py` (`EmailField(unique=True)`, `ImageField`, `PositiveSmallIntegerField` with choices); `products/models.py` (`DecimalField`, `SlugField`, `TextField`, `ImageField`, `PositiveIntegerField`) |
-| Validators | `accounts/models.py` → `kenyan_phone_validator` (`RegexValidator`); `products/models.py` → `MinValueValidator(0)` on `price` |
-| Choices | `products/models.py` → `Listing.Condition`, `Listing.ListingType`, `Listing.Status` (all `TextChoices`) |
-| One-to-many relationships | `products/models.py` → `Listing.seller` (FK to `AUTH_USER_MODEL`, `CASCADE`, `related_name="listings"`), `Listing.category` (FK `PROTECT`) and `ListingImage.listing` (FK `CASCADE`, `related_name="images"`) |
-| Many-to-many through a table | `products/models.py` → `SavedListing` (user + listing) with a `UniqueConstraint` on the pair, written and deleted by `products/views.py` → `toggle_save` |
-| Model-level validation | `products/models.py` → `Listing.clean()` (Sell/Trade/Free price rules); `accounts/models.py` → `User.clean()` (normalises the phone to `+254…`) |
-| Meta options and indexes | `products/models.py` → `Listing.Meta.ordering`, two `models.Index` entries; `Category.Meta.ordering`; `SavedListing.Meta.constraints` |
-| Model methods and properties | `__str__`, `get_absolute_url`, `Listing.display_price`, `Listing.cover`, `Listing.is_available`, `User.display_name`, `User.initials` |
-| Custom `save()` | `products/models.py` → `Listing.save()` builds a unique slug from the title plus a random suffix |
-| Data migration | `products/migrations/0002_seed_categories.py`; `products/migrations/0004_move_cover_image_to_gallery.py` moves each listing's single image into the gallery as its cover, then drops `Listing.image` |
-| Management command | `products/management/commands/seed_demo.py` |
+| Requirement                  | Where                                                                                                                                                                                                           |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Custom user model            | `accounts/models.py` → `User(AbstractUser)`, with `AUTH_USER_MODEL = "accounts.User"` in `config/settings.py`                                                                                                   |
+| Field types and options      | `accounts/models.py` (`EmailField(unique=True)`, `ImageField`, `PositiveSmallIntegerField` with choices); `products/models.py` (`DecimalField`, `SlugField`, `TextField`, `ImageField`, `PositiveIntegerField`) |
+| Validators                   | `accounts/models.py` → `kenyan_phone_validator` (`RegexValidator`); `products/models.py` → `MinValueValidator(0)` on `price`                                                                                    |
+| Choices                      | `products/models.py` → `Listing.Condition`, `Listing.ListingType`, `Listing.Status` (all `TextChoices`)                                                                                                         |
+| One-to-many relationships    | `products/models.py` → `Listing.seller` (FK to `AUTH_USER_MODEL`, `CASCADE`, `related_name="listings"`), `Listing.category` (FK `PROTECT`) and `ListingImage.listing` (FK `CASCADE`, `related_name="images"`)   |
+| Many-to-many through a table | `products/models.py` → `SavedListing` (user + listing) with a `UniqueConstraint` on the pair, written and deleted by `products/views.py` → `toggle_save`                                                        |
+| Model-level validation       | `products/models.py` → `Listing.clean()` (Sell/Trade/Free price rules); `accounts/models.py` → `User.clean()` (normalises the phone to `+254…`)                                                                 |
+| Meta options and indexes     | `products/models.py` → `Listing.Meta.ordering`, two `models.Index` entries; `Category.Meta.ordering`; `SavedListing.Meta.constraints`                                                                           |
+| Model methods and properties | `__str__`, `get_absolute_url`, `Listing.display_price`, `Listing.cover`, `Listing.is_available`, `User.display_name`, `User.initials`                                                                           |
+| Custom `save()`              | `products/models.py` → `Listing.save()` builds a unique slug from the title plus a random suffix                                                                                                                |
+| Data migration               | `products/migrations/0002_seed_categories.py`; `products/migrations/0004_move_cover_image_to_gallery.py` moves each listing's single image into the gallery as its cover, then drops `Listing.image`            |
+| Management command           | `products/management/commands/seed_demo.py`                                                                                                                                                                     |
 
 ### Forms
 
-| Requirement | Where |
-| --- | --- |
-| `ModelForm` | `products/forms.py` → `ListingForm`; `accounts/forms.py` → `ProfileForm` |
-| `ModelForm` subclassing a built-in | `accounts/forms.py` → `SignUpForm(UserCreationForm)` |
-| Plain `forms.Form` | `products/forms.py` → `ListingSearchForm` (GET search, saves nothing; `filter(queryset)` applies `Q` objects, range filters and sorting, `clean()` checks min ≤ max, `active_filters()` drives the chips) |
-| Field-level custom validation | `accounts/forms.py` → `SignUpForm.clean_email()` (lowercases, case-insensitive uniqueness, domain restriction) |
-| Cross-field validation | `products/models.py` → `Listing.clean()`, surfaced on the `price` / `trade_for` inputs by `ListingForm`; `products/forms.py` → `ListingForm.clean()` mirrors the "free has no price" rule |
-| Inline formset | `products/forms.py` → `listing_image_formset_class()` via `inlineformset_factory` (`can_order`, `can_delete`, `max_num=5`, `validate_max`) with `BaseListingImageFormSet.clean()` requiring at least one photo; saved by `PhotoFormsetMixin` in `products/views.py`; rendered by `templates/includes/photo_formset.html` |
-| File-upload validation | `products/forms.py` → `ListingImageForm.clean_image()` (max 5 MB, min 400px, must open in Pillow); `products/imaging.py` → `process_upload()` downscales and strips EXIF; `accounts/forms.py` → `ProfileForm.clean_avatar()` (max 2 MB) |
-| Widgets and labels | `products/forms.py` → `RadioSelect` segmented buttons for `listing_type` and `condition`, `Textarea`, placeholders |
-| Shared form styling | `config/forms.py` → `FormStyleMixin` adds the CSS classes and an error class to every widget |
-| Shared field rendering | `templates/includes/form_field.html` (label, widget, help text, errors, required marker) |
+| Requirement                        | Where                                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ModelForm`                        | `products/forms.py` → `ListingForm`; `accounts/forms.py` → `ProfileForm`                                                                                                                                                                                                                                                 |
+| `ModelForm` subclassing a built-in | `accounts/forms.py` → `SignUpForm(UserCreationForm)`                                                                                                                                                                                                                                                                     |
+| Plain `forms.Form`                 | `products/forms.py` → `ListingSearchForm` (GET search, saves nothing; `filter(queryset)` applies `Q` objects, range filters and sorting, `clean()` checks min ≤ max, `active_filters()` drives the chips)                                                                                                                |
+| Field-level custom validation      | `accounts/forms.py` → `SignUpForm.clean_email()` (lowercases, case-insensitive uniqueness, domain restriction)                                                                                                                                                                                                           |
+| Cross-field validation             | `products/models.py` → `Listing.clean()`, surfaced on the `price` / `trade_for` inputs by `ListingForm`; `products/forms.py` → `ListingForm.clean()` mirrors the "free has no price" rule                                                                                                                                |
+| Inline formset                     | `products/forms.py` → `listing_image_formset_class()` via `inlineformset_factory` (`can_order`, `can_delete`, `max_num=5`, `validate_max`) with `BaseListingImageFormSet.clean()` requiring at least one photo; saved by `PhotoFormsetMixin` in `products/views.py`; rendered by `templates/includes/photo_formset.html` |
+| File-upload validation             | `products/forms.py` → `ListingImageForm.clean_image()` (max 5 MB, min 400px, must open in Pillow); `products/imaging.py` → `process_upload()` downscales and strips EXIF; `accounts/forms.py` → `ProfileForm.clean_avatar()` (max 2 MB)                                                                                  |
+| Widgets and labels                 | `products/forms.py` → `RadioSelect` segmented buttons for `listing_type` and `condition`, `Textarea`, placeholders                                                                                                                                                                                                       |
+| Shared form styling                | `config/forms.py` → `FormStyleMixin` adds the CSS classes and an error class to every widget                                                                                                                                                                                                                             |
+| Shared field rendering             | `templates/includes/form_field.html` (label, widget, help text, errors, required marker)                                                                                                                                                                                                                                 |
 
 ### Authentication
 
-| Requirement | Where |
-| --- | --- |
-| Registration | `accounts/views.py` → `signup()`; `accounts/forms.py` → `SignUpForm` |
-| Email-domain restriction | `config/settings.py` → `ALLOWED_SIGNUP_EMAIL_DOMAINS` (read from `.env`; empty means allow any) |
-| Login with email **or** username | `accounts/backends.py` → `EmailOrUsernameBackend`, registered in `AUTHENTICATION_BACKENDS` ahead of `ModelBackend` |
-| Login view and form | `accounts/views.py` → `CampusLoginView`; `accounts/forms.py` → `LoginForm` |
-| Logout via POST | `accounts/urls.py` → `LogoutView`, posted from the navbar form in `templates/base.html` with `{% csrf_token %}` |
-| Password change | `accounts/urls.py` → `PasswordChangeView` / `PasswordChangeDoneView` |
-| Password reset (4 views) | `accounts/urls.py` → `PasswordResetView`, `PasswordResetDoneView`, `PasswordResetConfirmView`, `PasswordResetCompleteView`; templates in `templates/registration/` |
-| Development email backend | `config/settings.py` → `MAILERS["default"]` console backend (the current Django 6.1 API; `EMAIL_BACKEND` is deprecated) |
-| Login-required views | `accounts/views.py` → `ProfileUpdateView(LoginRequiredMixin, …)`; `products/views.py` → `ListingCreateView`, `MyListingsView`, `SavedListingsView`, `OwnerListingMixin` |
-| Ownership enforcement | `products/views.py` → `OwnerListingMixin.get_queryset()` filters to `seller=request.user`, so a non-owner gets a 404 on edit/delete; `mark_status()` is `@require_POST` with the same filter |
-| Auth redirect settings | `config/settings.py` → `LOGIN_URL`, `LOGIN_REDIRECT_URL`, `LOGOUT_REDIRECT_URL` |
-| Password hashing and validators | Django defaults, with `AUTH_PASSWORD_VALIDATORS` in `config/settings.py` |
+| Requirement                      | Where                                                                                                                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Registration                     | `accounts/views.py` → `signup()`; `accounts/forms.py` → `SignUpForm`                                                                                                                         |
+| Email-domain restriction         | `config/settings.py` → `ALLOWED_SIGNUP_EMAIL_DOMAINS` (read from `.env`; empty means allow any)                                                                                              |
+| Login with email **or** username | `accounts/backends.py` → `EmailOrUsernameBackend`, registered in `AUTHENTICATION_BACKENDS` ahead of `ModelBackend`                                                                           |
+| Login view and form              | `accounts/views.py` → `CampusLoginView`; `accounts/forms.py` → `LoginForm`                                                                                                                   |
+| Logout via POST                  | `accounts/urls.py` → `LogoutView`, posted from the navbar form in `templates/base.html` with `{% csrf_token %}`                                                                              |
+| Password change                  | `accounts/urls.py` → `PasswordChangeView` / `PasswordChangeDoneView`                                                                                                                         |
+| Password reset (4 views)         | `accounts/urls.py` → `PasswordResetView`, `PasswordResetDoneView`, `PasswordResetConfirmView`, `PasswordResetCompleteView`; templates in `templates/registration/`                           |
+| Development email backend        | `config/settings.py` → `MAILERS["default"]` console backend (the current Django 6.1 API; `EMAIL_BACKEND` is deprecated)                                                                      |
+| Login-required views             | `accounts/views.py` → `ProfileUpdateView(LoginRequiredMixin, …)`; `products/views.py` → `ListingCreateView`, `MyListingsView`, `SavedListingsView`, `OwnerListingMixin`                      |
+| Ownership enforcement            | `products/views.py` → `OwnerListingMixin.get_queryset()` filters to `seller=request.user`, so a non-owner gets a 404 on edit/delete; `mark_status()` is `@require_POST` with the same filter |
+| Auth redirect settings           | `config/settings.py` → `LOGIN_URL`, `LOGIN_REDIRECT_URL`, `LOGOUT_REDIRECT_URL`                                                                                                              |
+| Password hashing and validators  | Django defaults, with `AUTH_PASSWORD_VALIDATORS` in `config/settings.py`                                                                                                                     |
 
 ### Sessions
 
-| Requirement | Where |
-| --- | --- |
-| Session middleware | `config/settings.py` → `django.contrib.sessions.middleware.SessionMiddleware` in `MIDDLEWARE`, with `django.contrib.sessions` installed (sessions stored in the database) |
-| Session-based login | `accounts/views.py` → `CampusLoginView`; `django.contrib.auth.login()` writes the user id into `request.session` and cycles the session key to prevent fixation |
-| "Remember me" session expiry | `accounts/forms.py` → `LoginForm.remember_me`; `accounts/views.py` → `CampusLoginView.form_valid()` calls `request.session.set_expiry(0)` (ends when the browser closes) or `set_expiry(None)` to fall back to `SESSION_COOKIE_AGE` = 2 weeks in `config/settings.py` |
-| Recently viewed listings | `products/views.py` → `remember_viewed()` and `recently_viewed_listings()` store the last `RECENTLY_VIEWED_LIMIT` (5) listing ids under the `recently_viewed` session key, most recent first, no duplicates, skipping the visitor's own listings; rendered as a strip in `templates/home.html` |
-| Messages framework (session-backed) | `django.contrib.messages` rendered as toasts in `templates/base.html` |
+| Requirement                         | Where                                                                                                                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session middleware                  | `config/settings.py` → `django.contrib.sessions.middleware.SessionMiddleware` in `MIDDLEWARE`, with `django.contrib.sessions` installed (sessions stored in the database)                                                                                                                      |
+| Session-based login                 | `accounts/views.py` → `CampusLoginView`; `django.contrib.auth.login()` writes the user id into `request.session` and cycles the session key to prevent fixation                                                                                                                                |
+| "Remember me" session expiry        | `accounts/forms.py` → `LoginForm.remember_me`; `accounts/views.py` → `CampusLoginView.form_valid()` calls `request.session.set_expiry(0)` (ends when the browser closes) or `set_expiry(None)` to fall back to `SESSION_COOKIE_AGE` = 2 weeks in `config/settings.py`                          |
+| Recently viewed listings            | `products/views.py` → `remember_viewed()` and `recently_viewed_listings()` store the last `RECENTLY_VIEWED_LIMIT` (5) listing ids under the `recently_viewed` session key, most recent first, no duplicates, skipping the visitor's own listings; rendered as a strip in `templates/home.html` |
+| Messages framework (session-backed) | `django.contrib.messages` rendered as toasts in `templates/base.html`                                                                                                                                                                                                                          |
 
 ### APIs
 
-| Requirement | Where |
-| --- | --- |
-| Serializers | `api/serializers.py` → `CategorySerializer`, `ListingSerializer` (nested category, seller and photo URLs for reading; `category_id` for writing), `ListingImageSerializer` |
-| Validation reuse | `api/serializers.py` → `ListingSerializer.validate()` builds the listing the request would save and calls `Listing.clean()` on it, the same rules the web form gets through `full_clean()` |
-| ViewSets and routers | `api/views.py` → `CategoryViewSet` (read-only), `ListingViewSet`; `api/urls.py` → `DefaultRouter` |
-| Search, filter, paginate | `api/filters.py` → `ListingSearchBackend` hands the query string to `products.forms.ListingSearchForm`; `ListingPagination` is 12 per page, `page_size` up to 50 |
-| Custom permission | `api/permissions.py` → `IsOwnerOrReadOnly` (anyone reads, only `listing.seller` writes) |
-| Authentication | `config/settings.py` → `REST_FRAMEWORK`: `TokenAuthentication` then `SessionAuthentication`; `api/views.py` → `ApiTokenView` |
-| OpenAPI documentation | drf-spectacular: schema at `/api/schema/`, Swagger UI at `/api/docs/` |
-| Tests | `api/tests.py` (endpoint behaviour) and `config/tests_security.py` → `ApiAccessTests` (the permission matrix) |
+| Requirement              | Where                                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Serializers              | `api/serializers.py` → `CategorySerializer`, `ListingSerializer` (nested category, seller and photo URLs for reading; `category_id` for writing), `ListingImageSerializer`                 |
+| Validation reuse         | `api/serializers.py` → `ListingSerializer.validate()` builds the listing the request would save and calls `Listing.clean()` on it, the same rules the web form gets through `full_clean()` |
+| ViewSets and routers     | `api/views.py` → `CategoryViewSet` (read-only), `ListingViewSet`; `api/urls.py` → `DefaultRouter`                                                                                          |
+| Search, filter, paginate | `api/filters.py` → `ListingSearchBackend` hands the query string to `products.forms.ListingSearchForm`; `ListingPagination` is 12 per page, `page_size` up to 50                           |
+| Custom permission        | `api/permissions.py` → `IsOwnerOrReadOnly` (anyone reads, only `listing.seller` writes)                                                                                                    |
+| Authentication           | `config/settings.py` → `REST_FRAMEWORK`: `TokenAuthentication` then `SessionAuthentication`; `api/views.py` → `ApiTokenView`                                                               |
+| OpenAPI documentation    | drf-spectacular: schema at `/api/schema/`, Swagger UI at `/api/docs/`                                                                                                                      |
+| Tests                    | `api/tests.py` (endpoint behaviour) and `config/tests_security.py` → `ApiAccessTests` (the permission matrix)                                                                              |
 
 #### Endpoints
 
-| Method | Path | Who |
-| --- | --- | --- |
-| `GET` | `/api/v1/categories/` | anyone |
-| `GET` | `/api/v1/categories/<slug>/` | anyone |
-| `GET` | `/api/v1/listings/` | anyone |
-| `GET` | `/api/v1/listings/<slug>/` | anyone |
-| `POST` | `/api/v1/listings/` | any signed-in student |
-| `PUT` `PATCH` `DELETE` | `/api/v1/listings/<slug>/` | the seller only |
-| `POST` | `/api/v1/auth/token/` | anyone with a password |
+| Method                 | Path                         | Who                    |
+| ---------------------- | ---------------------------- | ---------------------- |
+| `GET`                  | `/api/v1/categories/`        | anyone                 |
+| `GET`                  | `/api/v1/categories/<slug>/` | anyone                 |
+| `GET`                  | `/api/v1/listings/`          | anyone                 |
+| `GET`                  | `/api/v1/listings/<slug>/`   | anyone                 |
+| `POST`                 | `/api/v1/listings/`          | any signed-in student  |
+| `PUT` `PATCH` `DELETE` | `/api/v1/listings/<slug>/`   | the seller only        |
+| `POST`                 | `/api/v1/auth/token/`        | anyone with a password |
 
 List filters: `q`, `category` (slug or id), `listing_type`, `condition`, `min_price`, `max_price`,
 `sort`, `show_sold`, `page`, `page_size`. Photo uploads are deliberately not in the API — they go
