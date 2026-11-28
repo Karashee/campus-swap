@@ -1,4 +1,8 @@
 # CampusSwap
+
+
+![CampusSwap landing page](docs/screenshots/landingpage.png)
+
 A student-only marketplace for Strathmore University.
 
 Individual semester project for BBT 3101 (Internet Programming with Django)
