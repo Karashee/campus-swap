@@ -4,7 +4,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import redirect_to_login
+from django.db import transaction
 from django.db.models import Count, F, Q
+from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_POST
@@ -16,17 +18,26 @@ from django.views.generic import (
     UpdateView,
 )
 
-from .forms import ListingForm, ListingSearchForm
+from .forms import ListingForm, ListingSearchForm, build_image_formset
 from .models import Category, Listing
+
+
+def listing_queryset():
+    """Listings with everything a card or detail page needs, in two queries.
+
+    select_related for the two foreign keys, prefetch_related for the photos,
+    so a 12-card grid does not run three queries per card.
+    """
+    return (
+        Listing.objects
+        .select_related('seller', 'category')
+        .prefetch_related('images')
+    )
 
 
 def available_listings():
     """The base queryset for every public list page."""
-    return (
-        Listing.objects
-        .select_related('seller', 'category')
-        .filter(status=Listing.Status.AVAILABLE)
-    )
+    return listing_queryset().filter(status=Listing.Status.AVAILABLE)
 
 
 RECENTLY_VIEWED_KEY = 'recently_viewed'
@@ -52,7 +63,7 @@ def recently_viewed_listings(request):
 
     by_pk = {
         listing.pk: listing
-        for listing in Listing.objects.select_related('seller', 'category').filter(pk__in=pks)
+        for listing in listing_queryset().filter(pk__in=pks)
     }
     # Keep the session's order, and drop anything since deleted.
     return [by_pk[pk] for pk in pks if pk in by_pk]
@@ -108,9 +119,7 @@ class ListingListView(ListView):
         return super().get(request, *args, **kwargs)
 
     def get_queryset(self):
-        # select_related keeps the card grid at one query instead of one per
-        # listing for the seller and category.
-        queryset = Listing.objects.select_related('seller', 'category')
+        queryset = listing_queryset()
         if self.category:
             queryset = queryset.filter(category=self.category)
         return self.search_form.filter(queryset)
@@ -149,7 +158,7 @@ class ListingDetailView(DetailView):
     context_object_name = 'listing'
 
     def get_queryset(self):
-        return Listing.objects.select_related('seller', 'category')
+        return listing_queryset()
 
     def get_object(self, queryset=None):
         listing = super().get_object(queryset)
@@ -169,6 +178,9 @@ class ListingDetailView(DetailView):
 
         is_owner = user.is_authenticated and listing.seller_id == user.pk
         context['is_owner'] = is_owner
+        # Evaluated once here so the gallery and the lightbox iterate the same
+        # prefetched list instead of hitting the database again.
+        context['photos'] = list(listing.images.all())
         context['can_contact'] = (
             user.is_authenticated and not is_owner and bool(listing.seller.phone)
         )
@@ -180,7 +192,56 @@ class ListingDetailView(DetailView):
         return context
 
 
-class ListingCreateView(LoginRequiredMixin, CreateView):
+class PhotoFormsetMixin:
+    """Adds the photo gallery formset to a listing create/update view.
+
+    The listing form and the formset have to stand or fall together: a listing
+    with no photos is not valid, and a photo row with no listing cannot be
+    saved. So nothing is written until both are clean, inside one transaction.
+    """
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if 'image_formset' not in context:
+            context['image_formset'] = build_image_formset(listing=self.object)
+        return context
+
+    def form_valid(self, form):
+        formset = build_image_formset(
+            listing=form.instance if form.instance.pk else None,
+            data=self.request.POST,
+            files=self.request.FILES,
+        )
+        if not formset.is_valid():
+            return self.render_to_response(
+                self.get_context_data(form=form, image_formset=formset)
+            )
+
+        with transaction.atomic():
+            response = super().form_valid(form)  # saves the listing
+            formset.instance = self.object
+            self.save_photos(formset)
+        return response
+
+    def save_photos(self, formset):
+        """Save the photo rows, then renumber them into the chosen order."""
+        for photo in formset.save(commit=False):
+            photo.listing = self.object
+            photo.save()
+        for photo in formset.deleted_objects:
+            photo.delete()
+
+        # ordered_forms is sorted by the ORDER inputs the arrow buttons
+        # rewrite, and leaves out deleted and still-empty slots. Position 0
+        # becomes the cover.
+        for position, photo_form in enumerate(formset.ordered_forms):
+            photo = photo_form.instance
+            if photo.pk and photo.order != position:
+                photo.order = position
+                photo.save(update_fields=['order'])
+
+
+class ListingCreateView(LoginRequiredMixin, PhotoFormsetMixin, CreateView):
     model = Listing
     form_class = ListingForm
     template_name = 'products/listing_form.html'
@@ -190,7 +251,9 @@ class ListingCreateView(LoginRequiredMixin, CreateView):
         # The seller is always the logged-in user, never a posted field.
         form.instance.seller = self.request.user
         response = super().form_valid(form)
-        messages.success(self.request, 'Your listing is up.')
+        if isinstance(response, HttpResponseRedirect):
+            # Anything else means the photo formset sent the page back.
+            messages.success(self.request, 'Your listing is up.')
         return response
 
 
@@ -208,14 +271,20 @@ class OwnerListingMixin(LoginRequiredMixin):
         return Listing.objects.filter(seller=self.request.user)
 
 
-class ListingUpdateView(OwnerListingMixin, UpdateView):
+class ListingUpdateView(OwnerListingMixin, PhotoFormsetMixin, UpdateView):
     form_class = ListingForm
     template_name = 'products/listing_form.html'
     extra_context = {'heading': 'Edit listing', 'submit_label': 'Save changes'}
 
+    def get_queryset(self):
+        return super().get_queryset().prefetch_related('images')
+
     def form_valid(self, form):
-        messages.success(self.request, 'Listing updated.')
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        if isinstance(response, HttpResponseRedirect):
+            # A redirect means both the form and the photo formset saved.
+            messages.success(self.request, 'Listing updated.')
+        return response
 
 
 class ListingDeleteView(OwnerListingMixin, DeleteView):
@@ -237,6 +306,7 @@ class MyListingsView(LoginRequiredMixin, ListView):
         queryset = (
             Listing.objects
             .select_related('category')
+            .prefetch_related('images')
             .filter(seller=self.request.user)
         )
         status = self.request.GET.get('status', '').upper()

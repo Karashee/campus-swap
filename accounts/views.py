@@ -58,6 +58,7 @@ def profile_detail(request, username):
     listings = (
         profile_user.listings
         .select_related('seller', 'category')
+        .prefetch_related('images')
         .filter(status=Listing.Status.AVAILABLE)
     )
     return render(

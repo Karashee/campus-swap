@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Category, Listing, SavedListing
+from .models import Category, Listing, ListingImage, SavedListing
 
 
 @admin.register(Category)
@@ -14,6 +14,26 @@ class CategoryAdmin(admin.ModelAdmin):
     @admin.display(description='Listings')
     def listing_count(self, obj):
         return obj.listings.count()
+
+
+class ListingImageInline(admin.TabularInline):
+    """The gallery, edited alongside the listing. Lowest order is the cover."""
+
+    model = ListingImage
+    extra = 1
+    max_num = ListingImage.MAX_PHOTOS
+    fields = ('preview', 'image', 'order')
+    readonly_fields = ('preview',)
+    ordering = ('order', 'pk')
+
+    @admin.display(description='')
+    def preview(self, obj):
+        if not obj.pk or not obj.image:
+            return '—'
+        return format_html(
+            '<img src="{}" style="width:90px;height:68px;object-fit:cover;border-radius:6px;">',
+            obj.image.url,
+        )
 
 
 @admin.register(Listing)
@@ -29,17 +49,23 @@ class ListingAdmin(admin.ModelAdmin):
     readonly_fields = ('views', 'slug', 'created_at', 'updated_at')
     autocomplete_fields = ('category',)
     date_hierarchy = 'created_at'
+    inlines = (ListingImageInline,)
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related('seller', 'category')
+        return (
+            super().get_queryset(request)
+            .select_related('seller', 'category')
+            .prefetch_related('images')
+        )
 
     @admin.display(description='')
     def thumbnail(self, obj):
-        if not obj.image:
+        cover = obj.cover
+        if not cover:
             return '—'
         return format_html(
             '<img src="{}" style="width:56px;height:42px;object-fit:cover;border-radius:6px;">',
-            obj.image.url,
+            cover.image.url,
         )
 
     @admin.display(description='Price')

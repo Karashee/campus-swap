@@ -4,9 +4,9 @@
 {% block content %}
 <section class="section">
   <h1>{{ heading }}</h1>
-  <p class="help">Add a clear photo and say where on campus you can meet.</p>
+  <p class="help">Add a few clear photos and say where on campus you can meet.</p>
 
-  <form class="form" method="post" enctype="multipart/form-data" novalidate
+  <form class="form form-wide" method="post" enctype="multipart/form-data" novalidate
         id="listing-form" data-sell="{{ form.fields.listing_type.choices.0.0 }}">
     {% csrf_token %}
     {% if form.non_field_errors %}
@@ -25,7 +25,8 @@
 
     {% include 'includes/form_field.html' with field=form.description %}
     {% include 'includes/form_field.html' with field=form.meetup_spot %}
-    {% include 'includes/form_field.html' with field=form.image %}
+
+    {% include 'includes/photo_formset.html' %}
 
     <button class="btn" type="submit">{{ submit_label }}</button>
     {% if object %}
@@ -54,6 +55,66 @@
 
     radios.forEach(function (radio) { radio.addEventListener('change', sync); });
     sync();
+  })();
+
+  // Photo reordering, by arrow button or by dragging.
+  // Moving a row in the DOM is only half the job: the server sorts by the
+  // hidden ORDER inputs, so those are renumbered on every move. With JS off
+  // the photos simply keep the order they already have.
+  (function () {
+    var list = document.getElementById('photo-list');
+    if (!list) { return; }
+
+    function rows() {
+      return Array.prototype.slice.call(list.querySelectorAll('[data-photo-row]'));
+    }
+
+    function renumber() {
+      rows().forEach(function (row, index) {
+        var order = row.querySelector('[data-order]');
+        if (order) { order.value = index + 1; }
+        var badge = row.querySelector('[data-cover-badge]');
+        if (badge) { badge.hidden = index !== 0; }
+      });
+    }
+
+    // Arrow buttons: the keyboard-accessible path.
+    list.addEventListener('click', function (event) {
+      var button = event.target.closest('[data-move]');
+      if (!button) { return; }
+      var row = button.closest('[data-photo-row]');
+      var up = button.dataset.move === 'up';
+      var sibling = up ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) { return; }
+
+      list.insertBefore(up ? row : sibling, up ? sibling : row);
+      renumber();
+      button.focus();
+    });
+
+    // Dragging: the same thing with a pointer.
+    var dragged = null;
+    rows().forEach(function (row) {
+      row.draggable = true;
+      row.addEventListener('dragstart', function () {
+        dragged = row;
+        row.classList.add('photo-row-dragging');
+      });
+      row.addEventListener('dragend', function () {
+        row.classList.remove('photo-row-dragging');
+        dragged = null;
+        renumber();
+      });
+      row.addEventListener('dragover', function (event) {
+        if (!dragged || dragged === row) { return; }
+        event.preventDefault();
+        var box = row.getBoundingClientRect();
+        var below = event.clientY > box.top + box.height / 2;
+        list.insertBefore(dragged, below ? row.nextSibling : row);
+      });
+    });
+
+    renumber();
   })();
 </script>
 {% endblock %}

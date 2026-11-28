@@ -3,7 +3,8 @@
     python manage.py seed_demo
     python manage.py seed_demo --reset   # clear demo data first
 
-Idempotent: running it twice leaves the same two students and six listings.
+Idempotent: running it twice leaves the same two students and six listings,
+each with one to four placeholder photos.
 """
 
 import textwrap
@@ -15,7 +16,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from PIL import Image, ImageDraw
 
-from products.models import Category, Listing
+from products.models import Category, Listing, ListingImage
 
 DEMO_PASSWORD = 'campus123!'
 
@@ -42,37 +43,44 @@ DEMO_STUDENTS = [
     },
 ]
 
-# (student index, title, category slug, type, price, trade_for, condition, status, spot, description)
+# (student index, title, category slug, type, price, trade_for, condition,
+#  status, spot, description, number of photos)
 DEMO_LISTINGS = [
     (
         0, 'Calculus Early Transcendentals 8th ed', 'textbooks',
         'SELL', 1800, '', 'GOOD', 'AVAILABLE', 'Library entrance',
         'Used for one semester. All pages intact, a bit of pencil in the margins.',
+        3,
     ),
     (
         0, 'Scientific calculator Casio fx-991ES', 'electronics',
         'SELL', 1200, '', 'LIKE_NEW', 'AVAILABLE', 'Student Centre',
         'Bought last year, barely used since I moved to a graphing one. Cover included.',
+        2,
     ),
     (
         1, 'Hotplate - 2 burner', 'dorm-essentials',
         'SELL', 2500, '', 'GOOD', 'RESERVED', 'Hostel A reception',
         'Works perfectly. Moving out of hostel so I no longer need it.',
+        1,
     ),
     (
         1, 'Study desk and chair', 'furniture',
         'TRADE', None, 'A small bookshelf or a floor lamp', 'FAIR', 'AVAILABLE', 'Phase 2 parking',
         'Solid wooden desk, one scratch on the top. Chair included.',
+        4,
     ),
     (
         0, 'A4 refill pads, pack of 5', 'stationery',
         'FREE', None, '', 'NEW', 'AVAILABLE', 'Main gate',
         'Extra pads from a bulk buy. First person to message gets them.',
+        1,
     ),
     (
         1, 'Strathmore hoodie, size M', 'clothing',
         'SELL', 900, '', 'GOOD', 'SOLD', 'Student Centre',
         'Official hoodie, washed but no fading. Fits a medium comfortably.',
+        1,
     ),
 ]
 
@@ -88,11 +96,16 @@ CATEGORY_COLOURS = {
 }
 
 
-def placeholder_image(title, colour):
+def shade(colour, step):
+    """A lighter version of a colour, so each photo of an item differs."""
+    return tuple(min(255, channel + step * 28) for channel in colour)
+
+
+def placeholder_image(title, colour, label=''):
     """A solid-colour 800x600 JPEG with the item title wrapped on it."""
     image = Image.new('RGB', (800, 600), colour)
     draw = ImageDraw.Draw(image)
-    lines = textwrap.wrap(title, width=22) or ['Listing']
+    lines = textwrap.wrap(f'{title}{label}', width=22) or ['Listing']
     line_height = 34
     y = 300 - (len(lines) * line_height) // 2
     for line in lines:
@@ -147,7 +160,7 @@ class Command(BaseCommand):
 
         for row in DEMO_LISTINGS:
             (student_index, title, category_slug, listing_type, price,
-             trade_for, condition, status, spot, description) = row
+             trade_for, condition, status, spot, description, photos) = row
 
             seller = students[student_index]
             if Listing.objects.filter(seller=seller, title=title).exists():
@@ -167,14 +180,26 @@ class Command(BaseCommand):
                 meetup_spot=spot,
             )
             # Same rules the forms use, so bad demo data fails loudly here.
-            listing.full_clean(exclude=['image', 'slug'])
-            listing.image.save(
-                f'{title[:40]}.jpg',
-                placeholder_image(title, CATEGORY_COLOURS[category_slug]),
-                save=False,
-            )
+            listing.full_clean(exclude=['slug'])
             listing.save()
-            self.stdout.write(f'Created listing "{title}"')
+
+            # A couple of listings get a small gallery so the detail page
+            # thumbnails and lightbox have something to show.
+            colour = CATEGORY_COLOURS[category_slug]
+            for position in range(photos):
+                label = '' if position == 0 else f' ({position + 1})'
+                photo = ListingImage(listing=listing, order=position)
+                photo.image.save(
+                    f'{title[:40]}-{position + 1}.jpg',
+                    placeholder_image(title, shade(colour, position), label),
+                    save=False,
+                )
+                photo.save()
+
+            self.stdout.write(
+                f'Created listing "{title}" with {photos} photo'
+                f'{"" if photos == 1 else "s"}'
+            )
 
         self.stdout.write(self.style.SUCCESS(
             f'\nDone. {len(students)} demo students, '

@@ -85,7 +85,6 @@ class Listing(models.Model):
     meetup_spot = models.CharField(
         max_length=120, help_text='Where on campus you can hand the item over.'
     )
-    image = models.ImageField(upload_to='listings/%Y/%m/')
     views = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -145,6 +144,20 @@ class Listing(models.Model):
         return self.status == self.Status.AVAILABLE
 
     @property
+    def cover(self):
+        """The first photo: the one used on cards and as the main image.
+
+        Slicing rather than .first() so a prefetched ``images`` cache is
+        reused instead of firing one extra query per card in a grid.
+        """
+        images = self.images.all()[:1]
+        return images[0] if images else None
+
+    @property
+    def photo_count(self):
+        return len(self.images.all())
+
+    @property
     def display_price(self):
         """'KSh 1,500' / 'Free' / 'Trade' for templates and the admin."""
         if self.listing_type == self.ListingType.FREE:
@@ -154,6 +167,39 @@ class Listing(models.Model):
         if self.price is None:
             return '—'
         return f'KSh {self.price:,.0f}'
+
+
+class ListingImage(models.Model):
+    """One photo of a listing. The lowest ``order`` is the cover image.
+
+    A listing has between one and MAX_PHOTOS of these; the limit lives in the
+    formset, since it is a rule about one submission rather than about the row.
+    """
+
+    MAX_PHOTOS = 5
+
+    listing = models.ForeignKey(
+        Listing,
+        on_delete=models.CASCADE,
+        related_name='images',
+    )
+    image = models.ImageField(upload_to='listings/%Y/%m/')
+    order = models.PositiveSmallIntegerField(
+        default=0, help_text='Lowest first. The first photo is the cover.'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # pk breaks ties so the order is stable when two rows share a number.
+        ordering = ['order', 'pk']
+        indexes = [models.Index(fields=['listing', 'order'])]
+
+    def __str__(self):
+        return f'Photo {self.order + 1} of {self.listing.title}'
+
+    @property
+    def is_cover(self):
+        return self == self.listing.cover
 
 
 class SavedListing(models.Model):

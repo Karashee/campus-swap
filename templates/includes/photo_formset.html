@@ -1,0 +1,59 @@
+{# The listing photo gallery formset. Expects `image_formset`. #}
+<fieldset class="photos" id="photo-formset">
+  <legend>Photos</legend>
+  <p class="help">
+    Up to {{ image_formset.max_num }} photos. The first one is the cover shown on
+    the browse page — use the arrows to reorder. Large photos are resized for you.
+  </p>
+
+  {{ image_formset.management_form }}
+
+  {% if image_formset.is_bound %}
+  {# Browsers never send a file input back, so a rejected form loses them. #}
+  <p class="help">Photos are not kept when the form comes back — please choose them again.</p>
+  {% endif %}
+
+  {% if image_formset.non_form_errors %}
+  <div class="form-errors">
+    {% for error in image_formset.non_form_errors %}<p style="margin:0">{{ error }}</p>{% endfor %}
+  </div>
+  {% endif %}
+
+  <ol class="photo-list" id="photo-list">
+    {% for photo_form in image_formset %}
+    <li class="photo-row{% if not photo_form.instance.pk %} photo-row-empty{% endif %}" data-photo-row>
+      {{ photo_form.id }}
+      {# The hidden ORDER field is what the arrow buttons rewrite. #}
+      <input type="hidden" name="{{ photo_form.ORDER.html_name }}"
+             value="{{ photo_form.ORDER.value|default_if_none:'' }}" data-order>
+
+      <div class="photo-thumb">
+        {% if photo_form.instance.pk %}
+        <img src="{{ photo_form.instance.image.url }}" alt="">
+        {# Only the first photo is the cover; JS moves this as rows move. #}
+        <span class="photo-badge" data-cover-badge
+              {% if not forloop.first %}hidden{% endif %}>Cover</span>
+        {% else %}
+        <span class="photo-thumb-empty" aria-hidden="true">+</span>
+        {% endif %}
+      </div>
+
+      <div class="photo-fields">
+        {% include 'includes/form_field.html' with field=photo_form.image %}
+
+        {% if photo_form.instance.pk %}
+        <div class="photo-controls">
+          <button class="btn btn-secondary btn-icon" type="button" data-move="up"
+                  aria-label="Move this photo earlier">&uarr;</button>
+          <button class="btn btn-secondary btn-icon" type="button" data-move="down"
+                  aria-label="Move this photo later">&darr;</button>
+          <label class="photo-delete">
+            {{ photo_form.DELETE }} Remove
+          </label>
+        </div>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</fieldset>

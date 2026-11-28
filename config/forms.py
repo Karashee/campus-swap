@@ -22,13 +22,27 @@ class FormStyleMixin:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for name, field in self.fields.items():
+        for field in self.fields.values():
             widget = field.widget
-            classes = widget.attrs.get('class', '').split()
-
             if not isinstance(widget, self.bare_widgets):
-                classes.append('input')
-            if self.is_bound and self.errors.get(name):
-                classes.append('input-error')
+                self._add_class(widget, 'input')
 
-            widget.attrs['class'] = ' '.join(dict.fromkeys(classes)).strip()
+    def full_clean(self):
+        """Mark the widgets that ended up with errors.
+
+        This waits for validation instead of asking for self.errors in
+        __init__: a formset adds its ORDER and DELETE fields just *after*
+        building each form, so validating early would leave those fields out
+        of cleaned_data entirely.
+        """
+        super().full_clean()
+        for name in self.errors:
+            if name in self.fields:
+                self._add_class(self.fields[name].widget, 'input-error')
+
+    @staticmethod
+    def _add_class(widget, css_class):
+        classes = widget.attrs.get('class', '').split()
+        classes.append(css_class)
+        # dict.fromkeys keeps the order and drops duplicates.
+        widget.attrs['class'] = ' '.join(dict.fromkeys(classes)).strip()

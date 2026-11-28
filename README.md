@@ -35,10 +35,13 @@ by Andrew Karanja (167144).
 
 **Marketplace**
 
-- Post a listing with a photo, category, condition, meet-up spot and a Sell / Trade / Free type
+- Post a listing with photos, category, condition, meet-up spot and a Sell / Trade / Free type
 - Price rules per type: selling needs a price, trading needs what you want in exchange, free has no price
-- Listing detail page with the price tag, badges, seller card and a WhatsApp contact link for
-  logged-in students
+- Up to five photos per listing through an inline formset, reordered by arrow buttons or dragging;
+  the first photo is the cover shown on cards
+- Every upload is downscaled to 1600px and re-encoded without EXIF metadata (so no stray GPS data)
+- Listing detail page with a photo gallery (thumbnails, arrow-key navigation, `<dialog>` lightbox),
+  the price tag, badges, seller card and a WhatsApp contact link for logged-in students
 - Edit, delete and mark a listing Available / Reserved / Sold — owner only
 - "My listings" with status tabs and counts
 - `/browse/` — search across title and description, filter by category, type, condition and price
@@ -53,8 +56,10 @@ by Andrew Karanja (167144).
 **Admin and demo data**
 
 - Custom user admin with the student profile fields
-- Listing admin with thumbnails, filters, search and inline status editing
-- Seven categories seeded by a data migration, plus a `seed_demo` command
+- Listing admin with thumbnails, filters, search, inline status editing and the photo gallery
+  as a `TabularInline`
+- Seven categories seeded by a data migration, plus a `seed_demo` command that generates
+  placeholder photos with Pillow
 
 ## Requirements coverage
 
@@ -66,13 +71,13 @@ by Andrew Karanja (167144).
 | Field types and options      | `accounts/models.py` (`EmailField(unique=True)`, `ImageField`, `PositiveSmallIntegerField` with choices); `products/models.py` (`DecimalField`, `SlugField`, `TextField`, `ImageField`, `PositiveIntegerField`) |
 | Validators                   | `accounts/models.py` → `kenyan_phone_validator` (`RegexValidator`); `products/models.py` → `MinValueValidator(0)` on `price`                                                                                    |
 | Choices                      | `products/models.py` → `Listing.Condition`, `Listing.ListingType`, `Listing.Status` (all `TextChoices`)                                                                                                         |
-| One-to-many relationships    | `products/models.py` → `Listing.seller` (FK to `AUTH_USER_MODEL`, `CASCADE`, `related_name="listings"`) and `Listing.category` (FK `PROTECT`)                                                                   |
+| One-to-many relationships    | `products/models.py` → `Listing.seller` (FK to `AUTH_USER_MODEL`, `CASCADE`, `related_name="listings"`), `Listing.category` (FK `PROTECT`) and `ListingImage.listing` (FK `CASCADE`, `related_name="images"`) |
 | Many-to-many through a table | `products/models.py` → `SavedListing` (user + listing) with a `UniqueConstraint` on the pair                                                                                                                    |
 | Model-level validation       | `products/models.py` → `Listing.clean()` (Sell/Trade/Free price rules); `accounts/models.py` → `User.clean()` (normalises the phone to `+254…`)                                                                 |
 | Meta options and indexes     | `products/models.py` → `Listing.Meta.ordering`, two `models.Index` entries; `Category.Meta.ordering`                                                                                                            |
 | Model methods and properties | `__str__`, `get_absolute_url`, `Listing.display_price`, `Listing.is_available`, `User.display_name`, `User.initials`                                                                                            |
 | Custom `save()`              | `products/models.py` → `Listing.save()` builds a unique slug from the title plus a random suffix                                                                                                                |
-| Data migration               | `products/migrations/0002_seed_categories.py`                                                                                                                                                                   |
+| Data migration               | `products/migrations/0002_seed_categories.py`; `products/migrations/0004_move_cover_image_to_gallery.py` moves each listing's single image into the gallery as its cover, then drops `Listing.image`            |
 | Management command           | `products/management/commands/seed_demo.py`                                                                                                                                                                     |
 
 > Note on where validation runs: `Model.clean()` is **not** called by `save()`. It runs when something
@@ -89,7 +94,8 @@ by Andrew Karanja (167144).
 | Plain `forms.Form`                 | `products/forms.py` → `ListingSearchForm` (GET search, saves nothing; `filter(queryset)` applies `Q` objects, range filters and sorting, `clean()` checks min ≤ max, `active_filters()` drives the chips) |
 | Field-level custom validation      | `accounts/forms.py` → `SignUpForm.clean_email()` (lowercases, case-insensitive uniqueness, domain restriction)                                                                            |
 | Cross-field validation             | `products/models.py` → `Listing.clean()`, surfaced on the `price` / `trade_for` inputs by `ListingForm`; `products/forms.py` → `ListingForm.clean()` mirrors the "free has no price" rule |
-| File-upload validation             | `products/forms.py` → `ListingForm.clean_image()` (max 5 MB, jpg/png/webp); `accounts/forms.py` → `ProfileForm.clean_avatar()` (max 2 MB)                                                 |
+| Inline formset                     | `products/forms.py` → `ListingImageFormSet` via `inlineformset_factory` (`can_order`, `can_delete`, `max_num=5`, `validate_max`) with `BaseListingImageFormSet.clean()` requiring at least one photo; saved by `PhotoFormsetMixin` in `products/views.py` |
+| File-upload validation             | `products/forms.py` → `ListingImageForm.clean_image()` (max 5 MB, min 400px, must open in Pillow); `products/imaging.py` → `process_upload()` downscales and strips EXIF; `accounts/forms.py` → `ProfileForm.clean_avatar()` (max 2 MB) |
 | Widgets and labels                 | `products/forms.py` → `RadioSelect` segmented buttons for `listing_type` and `condition`, `Textarea`, placeholders                                                                        |
 | Shared form styling                | `config/forms.py` → `FormStyleMixin` adds the CSS classes and an error class to every widget                                                                                              |
 | Shared field rendering             | `templates/includes/form_field.html` (label, widget, help text, errors, required marker)                                                                                                  |

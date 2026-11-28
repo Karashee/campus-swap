@@ -7,13 +7,38 @@
   <p><a class="btn btn-ghost" href="{% url 'products:browse' %}">&larr; Back to listings</a></p>
 
   <div class="detail">
-    <div>
+    <div class="gallery" id="gallery">
       <div class="detail-image{% if not listing.is_available %} is-{{ listing.status|lower }}{% endif %}">
-        <img src="{{ listing.image.url }}" alt="{{ listing.title }}">
+        {% if photos %}
+        <button class="gallery-main" type="button" data-lightbox-open
+                aria-label="Open this photo full size">
+          <img src="{{ photos.0.image.url }}" alt="{{ listing.title }}"
+               id="gallery-main-image" data-index="0">
+        </button>
+        {% else %}
+        <div class="gallery-main gallery-empty">No photo</div>
+        {% endif %}
         {% if not listing.is_available %}
         <span class="status-overlay">{{ listing.get_status_display|upper }}</span>
         {% endif %}
       </div>
+
+      {% if photos|length > 1 %}
+      <ul class="thumbs" role="tablist" aria-label="Photos of {{ listing.title }}">
+        {% for photo in photos %}
+        <li role="presentation">
+          <button class="thumb{% if forloop.first %} thumb-active{% endif %}"
+                  type="button" role="tab" data-thumb data-index="{{ forloop.counter0 }}"
+                  data-src="{{ photo.image.url }}"
+                  aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                  aria-label="Show photo {{ forloop.counter }} of {{ photos|length }}">
+            <img src="{{ photo.image.url }}" alt="" loading="lazy">
+          </button>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="help">Use &larr; and &rarr; to move between photos.</p>
+      {% endif %}
     </div>
 
     <div>
@@ -95,4 +120,90 @@
     </div>
   </div>
 </section>
+
+{% if photos %}
+<dialog class="lightbox" id="lightbox" aria-label="Photos of {{ listing.title }}">
+  <img id="lightbox-image" src="" alt="{{ listing.title }}">
+  <div class="lightbox-bar">
+    <button class="btn btn-secondary" type="button" data-lightbox-prev
+            aria-label="Previous photo">&larr;</button>
+    <span class="help" id="lightbox-count"></span>
+    <button class="btn btn-secondary" type="button" data-lightbox-next
+            aria-label="Next photo">&rarr;</button>
+    <button class="btn" type="button" data-lightbox-close>Close</button>
+  </div>
+</dialog>
+
+<script>
+  // Gallery: thumbnails, arrow-key navigation and a <dialog> lightbox.
+  // The photos are already in the page, so this only swaps the big image.
+  (function () {
+    var gallery = document.getElementById('gallery');
+    var main = document.getElementById('gallery-main-image');
+    if (!gallery || !main) { return; }
+
+    var thumbs = Array.prototype.slice.call(gallery.querySelectorAll('[data-thumb]'));
+    var sources = thumbs.length
+      ? thumbs.map(function (thumb) { return thumb.dataset.src; })
+      : [main.getAttribute('src')];
+    var current = 0;
+
+    var lightbox = document.getElementById('lightbox');
+    var lightboxImage = document.getElementById('lightbox-image');
+    var lightboxCount = document.getElementById('lightbox-count');
+
+    function show(index) {
+      current = (index + sources.length) % sources.length;
+      main.src = sources[current];
+      main.dataset.index = current;
+      thumbs.forEach(function (thumb, position) {
+        var active = position === current;
+        thumb.classList.toggle('thumb-active', active);
+        thumb.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      if (lightbox && lightbox.open) {
+        lightboxImage.src = sources[current];
+        lightboxCount.textContent = (current + 1) + ' / ' + sources.length;
+      }
+    }
+
+    thumbs.forEach(function (thumb) {
+      thumb.addEventListener('click', function () {
+        show(parseInt(thumb.dataset.index, 10));
+      });
+    });
+
+    // Arrow keys work while the focus is anywhere in the gallery, and while
+    // the lightbox is open.
+    document.addEventListener('keydown', function (event) {
+      var inGallery = gallery.contains(document.activeElement)
+        || (lightbox && lightbox.open);
+      if (!inGallery) { return; }
+      if (event.key === 'ArrowRight') { event.preventDefault(); show(current + 1); }
+      if (event.key === 'ArrowLeft') { event.preventDefault(); show(current - 1); }
+    });
+
+    if (!lightbox || typeof lightbox.showModal !== 'function') { return; }
+
+    var opener = gallery.querySelector('[data-lightbox-open]');
+    if (opener) {
+      opener.addEventListener('click', function () {
+        lightboxImage.src = sources[current];
+        lightboxCount.textContent = (current + 1) + ' / ' + sources.length;
+        lightbox.showModal();
+      });
+    }
+    lightbox.querySelector('[data-lightbox-prev]')
+      .addEventListener('click', function () { show(current - 1); });
+    lightbox.querySelector('[data-lightbox-next]')
+      .addEventListener('click', function () { show(current + 1); });
+    lightbox.querySelector('[data-lightbox-close]')
+      .addEventListener('click', function () { lightbox.close(); });
+    // Clicking the backdrop (outside the image and the bar) closes it too.
+    lightbox.addEventListener('click', function (event) {
+      if (event.target === lightbox) { lightbox.close(); }
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}
