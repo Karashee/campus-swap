@@ -1,11 +1,41 @@
 # CampusSwap
-
-![CampusSwap landing page](docs/screenshots/landingpage.png)
-
 A student-only marketplace for Strathmore University.
 
 Individual semester project for BBT 3101 (Internet Programming with Django)
 by Andrew Karanja (167144).
+
+## Screenshots
+
+### Posting and viewing an item
+**Sell an item:** listing form with category, condition and listing type (ModelForm)
+![Sell form](docs/screenshots/sell-form.png)
+
+**Trade details and photos:** trade field plus up to five photos (inline formset)
+![Sell form photos](docs/screenshots/sell-form-photos.png)
+
+**Listing detail:** photo gallery, price tag, seller card and contact button
+![Listing detail](docs/screenshots/listing-detail.png)
+
+**Owner view:** the seller's panel to edit, delete and mark an item reserved or sold
+![Listing detail owner](docs/screenshots/listing-detail-owner.png)
+
+### Accounts
+**Log in:** email or username, with a "keep me logged in" option (session expiry)
+![Login](docs/screenshots/login.png)
+
+**Sign up:** restricted to Strathmore email addresses
+![Sign up](docs/screenshots/signup.png)
+
+**Running locally:** the sign-up page served by the Django dev server
+![Sign up in browser](docs/screenshots/signup-browser.png)
+
+**Edit profile:** phone, course, year of study, bio and avatar
+![Profile edit](docs/screenshots/profile-edit.png)
+
+### Saved listings
+**Saved items:** listings a student has starred to come back to
+![Saved listings](docs/screenshots/saved-listings.png)
+
 
 ## What it is
 
