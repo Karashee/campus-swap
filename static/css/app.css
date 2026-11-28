@@ -96,6 +96,13 @@ img { max-width: 100%; display: block; }
   background: #FDECEA; border: 1px solid var(--danger); border-radius: var(--radius-control);
   color: var(--danger); font-size: .9rem;
 }
+/* The box supplies the padding, so each message sits flush inside it. These
+   used to be inline style="margin:0" attributes, which the Content Security
+   Policy would now block. */
+.form-errors p { margin: 0; }
+
+/* The delete confirmation is a narrow card, not a full-width one. */
+.confirm-card { max-width: 32rem; }
 
 /* Cards */
 .card {

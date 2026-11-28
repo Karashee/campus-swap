@@ -1,4 +1,5 @@
 from io import BytesIO
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -9,6 +10,7 @@ from PIL import Image
 from products.forms import PHOTO_PREFIX
 from products.imaging import (
     MAX_DIMENSION,
+    ImageTooLarge,
     ImageTooSmall,
     UnidentifiedImageError,
     process_upload,
@@ -729,6 +731,23 @@ class ImageProcessingTests(TestCase):
             an_image('photo.PNG', size=(800, 600), image_format='PNG')
         )
         self.assertEqual(processed.name, 'photo.jpg')
+
+    def test_a_decompression_bomb_is_a_form_error_not_a_crash(self):
+        """A small file that decodes to an enormous bitmap.
+
+        Pillow's own pixel ceiling is lowered here rather than crafting a real
+        bomb, which would mean shipping a file designed to exhaust memory. The
+        path under test is the same one: Image.open raises
+        DecompressionBombError and process_upload turns it into ImageTooLarge.
+        """
+        with mock.patch.object(Image, 'MAX_IMAGE_PIXELS', 100):
+            with self.assertRaises(ImageTooLarge):
+                process_upload(an_image('bomb.png', size=(600, 450)))
+
+    def test_a_directory_traversal_filename_cannot_escape_the_media_folder(self):
+        """The stored name is rebuilt from the stem, so any path part is lost."""
+        processed = process_upload(an_image('../../../etc/passwd.jpg'))
+        self.assertEqual(processed.name, 'passwd.jpg')
 
 
 class MyListingsTests(ListingTestBase):

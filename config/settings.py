@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 from pathlib import Path
 
+from django.utils.csp import CSP
 from dotenv import load_dotenv
 import os
 
@@ -66,6 +67,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Django 6.0+ ships CSP in core; see SECURE_CSP below.
+    'django.middleware.csp.ContentSecurityPolicyMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -105,6 +108,9 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # Puts the per-response nonce in the template context so
+                # {% csp_nonce_attr %} can mark our own inline scripts.
+                'django.template.context_processors.csp',
             ],
         },
     },
@@ -165,6 +171,54 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+
+# Cache
+# Used by the login rate limiter (see accounts/ratelimit.py). LocMemCache is
+# per-process, which is fine for the dev server and for the tests; a real
+# deployment behind several workers would want Redis or Memcached so the
+# counters are shared. The trade-off is written up in SECURITY.md.
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'campusswap',
+    }
+}
+
+
+# Security
+# Production HTTPS settings (SECURE_SSL_REDIRECT, HSTS, secure cookies) are
+# deliberately not here: this project is submitted as a repository and is not
+# served over HTTPS. The measures below are the ones that apply either way.
+
+#: Login throttle: this many failed attempts, then a lockout.
+LOGIN_RATELIMIT_ATTEMPTS = int(os.getenv('LOGIN_RATELIMIT_ATTEMPTS', '5'))
+
+#: How long the failure count and the resulting lockout last, in seconds.
+LOGIN_RATELIMIT_WINDOW = int(os.getenv('LOGIN_RATELIMIT_WINDOW', str(15 * 60)))
+
+# Content Security Policy. Everything on the site is served from our own
+# origin except the Google Fonts stylesheet and its font files, so the policy
+# is 'self' plus those two hosts. Our four inline <script> blocks carry the
+# per-response nonce; anything injected into a page cannot guess it, which is
+# the second line of defence behind Django's template autoescaping.
+SECURE_CSP = {
+    'default-src': [CSP.SELF],
+    'script-src': [CSP.SELF, CSP.NONCE],
+    'style-src': [CSP.SELF, 'https://fonts.googleapis.com'],
+    'font-src': [CSP.SELF, 'https://fonts.gstatic.com'],
+    # data: because the browser needs it for the <img> placeholders; media
+    # uploads are served from our own origin.
+    'img-src': [CSP.SELF, 'data:'],
+    'connect-src': [CSP.SELF],
+    # Stops an injected <base> from re-pointing every relative URL, and keeps
+    # posted forms (including the logout form) on our own origin.
+    'base-uri': [CSP.SELF],
+    'form-action': [CSP.SELF],
+    'frame-ancestors': [CSP.NONE],
+    'object-src': [CSP.NONE],
+}
 
 
 # Email

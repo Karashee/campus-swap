@@ -9,6 +9,7 @@ from config.forms import FormStyleMixin
 from .imaging import (
     MAX_UPLOAD_BYTES,
     MIN_WIDTH,
+    ImageTooLarge,
     ImageTooSmall,
     UnidentifiedImageError,
     process_upload,
@@ -110,6 +111,7 @@ class ListingImageForm(FormStyleMixin, forms.ModelForm):
         if not isinstance(upload, UploadedFile):
             return upload
 
+        # Byte size first, before Pillow is asked to decode anything.
         if upload.size > MAX_UPLOAD_BYTES:
             raise ValidationError('Keep each photo under 5 MB.')
 
@@ -119,7 +121,13 @@ class ListingImageForm(FormStyleMixin, forms.ModelForm):
             raise ValidationError(
                 f'That photo is too small. Use one at least {MIN_WIDTH}px wide.'
             )
+        except ImageTooLarge:
+            raise ValidationError(
+                'That image has far too many pixels to be a real photo.'
+            )
         except UnidentifiedImageError:
+            # A .jpg that is really a PDF, a zip or a script lands here: the
+            # file extension is never what we go on.
             raise ValidationError('That file is not an image we can read.')
 
 

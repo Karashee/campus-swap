@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import Count, F, Q
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from django.views.generic import (
     CreateView,
@@ -346,7 +346,11 @@ class MyListingsView(LoginRequiredMixin, ListView):
 def mark_status(request, slug, status):
     """Owner-only status change. POST only, so a stray link can't trigger it."""
     if not request.user.is_authenticated:
-        return redirect_to_login(request.get_full_path())
+        # Send them to the listing, not back here: this URL is POST-only, so a
+        # ``next`` pointing at it would 405 the moment they logged in.
+        return redirect_to_login(
+            reverse('products:detail', kwargs={'slug': slug})
+        )
 
     status = status.upper()
     if status not in Listing.Status.values:

@@ -67,7 +67,8 @@
     <div class="container">CampusSwap — a student marketplace for Strathmore University.</div>
   </footer>
 
-  <script>
+  {# The nonce matches the CSP header, so this block runs and injected script does not. #}
+  <script {% csp_nonce_attr %}>
     // Mobile nav toggle
     (function () {
       var toggle = document.querySelector('.nav-toggle');

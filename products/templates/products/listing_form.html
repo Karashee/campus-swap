@@ -11,7 +11,7 @@
     {% csrf_token %}
     {% if form.non_field_errors %}
     <div class="form-errors">
-      {% for error in form.non_field_errors %}<p style="margin:0">{{ error }}</p>{% endfor %}
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
     </div>
     {% endif %}
 
@@ -37,7 +37,7 @@
   </form>
 </section>
 
-<script>
+<script {% csp_nonce_attr %}>
   // Show price for "For sale", trade_for for "For trade", neither for "Free".
   // Convenience only: products/forms.py is still the source of truth.
   (function () {
